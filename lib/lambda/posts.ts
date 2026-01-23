@@ -17,12 +17,16 @@ const ddb = DynamoDBDocument.from(client);
 
 /**
  * GET /posts
- * 
+ *
  * Returns latest 20 posts
+ * Query params:
+ *   - postType: post type filter (default: "TEXT", can also be "RECIPE")
  * TODO: pagination
  */
 async function getPosts(event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
+  const postType = event.queryStringParameters?.postType ?? 'TEXT';
+
   // get the first 10 posts, sorted by timestamp by querying on the "postTypeTimeSorted" index.
   try {
     const results = await ddb.query({
@@ -30,9 +34,9 @@ async function getPosts(event: APIGatewayProxyEventV2, context: Context): Promis
       IndexName: "postTypeTimeSorted",
       KeyConditionExpression: "postType = :postType",
       ScanIndexForward: false,
-      ExpressionAttributeValues: { ':postType': 'TEXT' },
+      ExpressionAttributeValues: { ':postType': postType },
     });
-    
+
     return success({
       message: "Success.",
       items: results.Items,
@@ -63,11 +67,14 @@ async function getPost(event: APIGatewayProxyEventV2, context: Context): Promise
       return error({ message: "Post does not exist." });
     }
 
+    // Get previous/next posts of the same type for navigation
+    const postType = result.Item.postType ?? 'TEXT';
+
     const previous = await ddb.query({
       TableName: tableName,
       IndexName: "postTypeTimeSorted",
       KeyConditionExpression: "postType = :postType and createdDate < :createdDate",
-      ExpressionAttributeValues: { ':postType': 'TEXT', ':createdDate': result.Item.createdDate },
+      ExpressionAttributeValues: { ':postType': postType, ':createdDate': result.Item.createdDate },
       ScanIndexForward: false,
       Limit: 1,
     });
@@ -76,7 +83,7 @@ async function getPost(event: APIGatewayProxyEventV2, context: Context): Promise
       TableName: tableName,
       IndexName: "postTypeTimeSorted",
       KeyConditionExpression: "postType = :postType and createdDate > :createdDate",
-      ExpressionAttributeValues: { ':postType': 'TEXT', ':createdDate': result.Item.createdDate },
+      ExpressionAttributeValues: { ':postType': postType, ':createdDate': result.Item.createdDate },
       Limit: 1,
     });
 
@@ -95,8 +102,10 @@ async function getPost(event: APIGatewayProxyEventV2, context: Context): Promise
 
 /**
  * POST /posts/new
- * 
- * Creates a new post.
+ *
+ * Creates a new post or recipe.
+ * For TEXT posts: requires title, content
+ * For RECIPE posts: requires title, instructions, ingredients, recipeCategory
  */
 async function putPost(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
@@ -104,27 +113,56 @@ async function putPost(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: 
     return error({ message: "Invalid Request: Missing post body." });
   }
   const item = JSON.parse(event.body);
-  if (!item?.post?.title || !item?.post?.content) {
-    return error({ message: "Invalid Request: title & content are required fields." });
+  const postType = item?.post?.postType ?? 'TEXT';
+
+  // Validate based on post type
+  if (postType === 'TEXT') {
+    if (!item?.post?.title || !item?.post?.content) {
+      return error({ message: "Invalid Request: title & content are required fields." });
+    }
+  } else if (postType === 'RECIPE') {
+    if (!item?.post?.title || !item?.post?.instructions || !item?.post?.ingredients) {
+      return error({ message: "Invalid Request: title, instructions & ingredients are required for recipes." });
+    }
+  } else {
+    return error({ message: "Invalid Request: postType must be TEXT or RECIPE." });
   }
+
   const { username, sub } = getUserInfo(event);
   const id = uuidv4();
   const createdDate = Date.now();
+
+  // Build the item based on post type
+  const dbItem: Record<string, any> = {
+    postId: id,
+    postType: postType,
+    createdDate: createdDate,
+    author: username,
+    authorSub: sub,
+    title: item.post.title,
+  };
+
+  if (postType === 'TEXT') {
+    dbItem.content = item.post.content;
+  } else if (postType === 'RECIPE') {
+    dbItem.instructions = item.post.instructions;
+    dbItem.ingredients = item.post.ingredients;
+    dbItem.recipeTags = item.post.recipeTags;
+    dbItem.description = item.post.description;
+    dbItem.pictureUrl = item.post.pictureUrl;
+    dbItem.prepTime = item.post.prepTime;
+    dbItem.cookTime = item.post.cookTime;
+    dbItem.servings = item.post.servings;
+  }
+
   try {
     const putResult = await ddb.put({
       TableName: tableName,
-      Item: {
-        postId: id,
-        postType: 'TEXT',
-        createdDate: createdDate,
-        author: username,
-        authorSub: sub,
-        title: item.post.title,
-        content: item.post.content
-      }
+      Item: dbItem
     });
     return success({
       message: "Success.",
+      postId: id,
       attributes: putResult.Attributes,
     });
   } catch (err) {
@@ -135,7 +173,7 @@ async function putPost(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: 
 /**
  * POST /posts/{postId}
  *
- * Edits a post.
+ * Edits a post or recipe.
  */
 async function editPost(event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
@@ -146,9 +184,7 @@ async function editPost(event: APIGatewayProxyEventV2, context: Context): Promis
     return error({ message: "Invalid Request: Missing postId path parameter." });
   }
   let item = JSON.parse(event.body);
-  if (!item?.post?.title && !item?.post?.content) {
-    return error({ message: "Invalid Request: either title or content is required to edit." });
-  }
+
   // get the existing post
   let postItem: any;
   try {
@@ -163,18 +199,42 @@ async function editPost(event: APIGatewayProxyEventV2, context: Context): Promis
   } catch (err) {
     return fault({ message: err })
   }
-  // update that post with new values for title & content from the request
+
+  const postType = postItem.postType ?? 'TEXT';
+
+  // Validate based on post type
+  if (postType === 'TEXT') {
+    if (!item?.post?.title && !item?.post?.content) {
+      return error({ message: "Invalid Request: either title or content is required to edit." });
+    }
+  }
+  // For recipes, any field can be updated
+
+  // update that post with new values from the request
   const editedDate = Date.now();
+  const updatedItem: Record<string, any> = {
+    ...postItem,
+    title: item.post.title ?? postItem.title,
+    editedDate: editedDate,
+  };
+
+  if (postType === 'TEXT') {
+    updatedItem.content = item.post.content ?? postItem.content;
+  } else if (postType === 'RECIPE') {
+    updatedItem.instructions = item.post.instructions;
+    updatedItem.ingredients = item.post.ingredients;
+    updatedItem.recipeTags = item.post.recipeTags;
+    updatedItem.description = item.post.description;
+    updatedItem.pictureUrl = item.post.pictureUrl;
+    updatedItem.prepTime = item.post.prepTime;
+    updatedItem.cookTime = item.post.cookTime;
+    updatedItem.servings = item.post.servings;
+  }
+
   try {
     const putResult = await ddb.put({
       TableName: tableName,
-      Item: {
-        ...postItem,
-        // overwrite title/content with values from request (if they exist)
-        title: item.post.title ?? postItem.title,
-        content: item.post.content ?? postItem.content,
-        editedDate: editedDate,
-      }
+      Item: updatedItem
     });
     return success({
       message: "Success.",
