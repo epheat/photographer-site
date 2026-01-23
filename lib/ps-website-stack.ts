@@ -47,7 +47,7 @@ export class PSWebsiteStack extends Stack {
     });
     const distribution = new cloudfront.Distribution(this, 'cloudfront-distribution', {
       defaultBehavior: {
-        origin: new origins.S3Origin(bucket),
+        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
@@ -55,6 +55,7 @@ export class PSWebsiteStack extends Stack {
       certificate: sslCertificate,
       domainNames: ['evanheaton.com', 'www.evanheaton.com'],
     });
+    origins.S3Origin
     const aliasRecord = new route53.ARecord(this, 'alias-record', {
       target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
       zone: hostedZone,

@@ -7,15 +7,15 @@ import {
   aws_route53 as route53,
   aws_route53_targets as targets,
   aws_s3 as s3,
+  aws_apigatewayv2 as apigateway,
+  aws_apigatewayv2_integrations as integrations,
+  aws_apigatewayv2_authorizers as authorizers,
   CfnOutput,
   Duration,
   RemovalPolicy,
   Stack,
   StackProps
 } from "aws-cdk-lib";
-import * as apigateway from "@aws-cdk/aws-apigatewayv2-alpha";
-import * as integrations from "@aws-cdk/aws-apigatewayv2-integrations-alpha";
-import * as authorizers from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { Construct } from "constructs";
 import * as path from "path";
 import { PSAuth } from "./constructs/ps-auth";
