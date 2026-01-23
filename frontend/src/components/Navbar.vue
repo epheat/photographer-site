@@ -7,6 +7,7 @@
       </div>
       <div class="navs" v-if="!isMobile">
         <router-link to="/posts">Posts</router-link>
+        <router-link to="/recipes">Recipes</router-link>
         <router-link to="/games">Games</router-link>
       </div>
       <nav-auth class="auth"></nav-auth>
@@ -15,6 +16,7 @@
       <div class="mobile-navs" v-show="isMobile && navExtended" :class="{ retracted: !navExtended }">
         <a @click="navTo('/')">Home</a>
         <a @click="navTo('/posts')">Posts</a>
+        <a @click="navTo('/recipes')">Recipes</a>
         <a @click="navTo('/games')">Games</a>
       </div>
     </Transition>
@@ -139,7 +141,7 @@ export default {
 
 .mobile-enter-active, .mobile-leave-active {
   transition: max-height 0.3s;
-  max-height: 120px;
+  max-height: 160px;
 }
 .mobile-enter-from, .mobile-leave-to {
   max-height: 0px;
