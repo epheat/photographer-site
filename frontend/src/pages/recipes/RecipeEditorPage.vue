@@ -190,6 +190,16 @@ export default {
           body: this.imageData,
         });
 
+        // Finalize the image metadata (removes TTL)
+        await API.post('ps-api', '/images/metadata', {
+          body: {
+            imageId: response.imageId,
+            title: this.title || this.imageFileName,
+            description: `Image for recipe "${this.title}".`,
+          },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
         this.pictureUrl = response.imageUrl;
         this.imageData = null;
         this.successMessage = 'Image uploaded successfully.';

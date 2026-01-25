@@ -3,8 +3,14 @@
     <h3>Ingredients</h3>
     <div class="ingredient-row" v-for="(ingredient, index) in ingredients" :key="index">
       <input
+        v-model="ingredient.name"
+        placeholder="Ingredient name"
+        class="name"
+        @input="emitUpdate"
+      />
+      <input
         v-model="ingredient.quantity"
-        placeholder="Qty"
+        placeholder="Quantity"
         class="quantity"
         @input="emitUpdate"
       />
@@ -12,12 +18,6 @@
         v-model="ingredient.unit"
         placeholder="Unit"
         class="unit"
-        @input="emitUpdate"
-      />
-      <input
-        v-model="ingredient.name"
-        placeholder="Ingredient name"
-        class="name"
         @input="emitUpdate"
       />
       <input
@@ -74,8 +74,7 @@ export default {
       }
     },
     emitUpdate() {
-      const filtered = this.ingredients.filter(i => i.name.trim() !== '');
-      this.$emit('update:modelValue', filtered);
+      this.$emit('update:modelValue', this.ingredients);
     }
   }
 }

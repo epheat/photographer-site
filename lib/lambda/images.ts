@@ -43,7 +43,7 @@ async function getUploadUrlActivity(event: APIGatewayProxyEventV2WithJWTAuthoriz
       Key: imageKey,
     })
     const uploadUrl = await getSignedUrl(s3Client, putObjectCommand, { expiresIn: 120 });
-
+    const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${imageKey}`;
     const putResult = await ddb.put({
       TableName: tableName,
       Item: {
@@ -51,7 +51,7 @@ async function getUploadUrlActivity(event: APIGatewayProxyEventV2WithJWTAuthoriz
         createdDate: createdDate,
         author: username,
         authorSub: sub,
-        s3Url: `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${imageKey}`,
+        s3Url: s3Url,
         ttl: Math.floor(createdDate / 1000) + 120, // created date plus 2 minutes (s)
       }
     });
@@ -60,6 +60,7 @@ async function getUploadUrlActivity(event: APIGatewayProxyEventV2WithJWTAuthoriz
       message: "Success.",
       imageId: imageId,
       uploadUrl: uploadUrl,
+      imageUrl: s3Url,
     });
   } catch (err) {
     console.log(err);

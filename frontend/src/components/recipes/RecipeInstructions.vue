@@ -42,7 +42,7 @@ export default {
     }
 
     ::v-deep(li) {
-      margin-bottom: 10px;
+      margin-bottom: 0;
     }
 
     ::v-deep(p) {

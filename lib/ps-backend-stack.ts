@@ -129,6 +129,13 @@ export class PSBackendStack extends Stack {
     });
     postsTable.grantReadWriteData(createPostLambda);
 
+    const editPostLambda = new nodejs.NodejsFunction(this, 'edit-post-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/posts.ts"),
+      handler: 'edit',
+    });
+    postsTable.grantReadWriteData(editPostLambda);
+
     // survivor functions
     const getCastLambda = new nodejs.NodejsFunction(this, 'get-cast-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
@@ -323,6 +330,12 @@ export class PSBackendStack extends Stack {
       path: '/posts/new',
       methods: [apigateway.HttpMethod.POST],
       integration: new integrations.HttpLambdaIntegration('create-post-integration', createPostLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/posts/{postId}',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('edit-post-integration', editPostLambda),
       authorizer: authorizer,
     });
 
