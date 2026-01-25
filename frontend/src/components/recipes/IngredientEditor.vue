@@ -1,40 +1,55 @@
 <template>
   <div class="ps-ingredient-editor">
     <h3>Ingredients</h3>
-    <div class="ingredient-row" v-for="(ingredient, index) in ingredients" :key="index">
-      <input
-        v-model="ingredient.name"
-        placeholder="Ingredient name"
-        class="name"
-        @input="emitUpdate"
-      />
-      <input
-        v-model="ingredient.quantity"
-        placeholder="Quantity"
-        class="quantity"
-        @input="emitUpdate"
-      />
-      <input
-        v-model="ingredient.unit"
-        placeholder="Unit"
-        class="unit"
-        @input="emitUpdate"
-      />
-      <input
-        v-model="ingredient.notes"
-        placeholder="Notes (optional)"
-        class="notes"
-        @input="emitUpdate"
-      />
-      <button type="button" class="remove" @click="removeIngredient(index)">X</button>
-    </div>
+    <draggable
+      v-model="ingredients"
+      :item-key="(el) => el"
+      handle=".drag-handle"
+      @end="emitUpdate"
+    >
+      <template #item="{ element, index }">
+        <div class="ingredient-row">
+          <span class="drag-handle">&#9776;</span>
+          <input
+            v-model="element.name"
+            placeholder="Ingredient name"
+            class="name"
+            @input="emitUpdate"
+          />
+          <input
+            v-model="element.quantity"
+            placeholder="Qty"
+            class="quantity"
+            @input="emitUpdate"
+          />
+          <input
+            v-model="element.unit"
+            placeholder="Unit"
+            class="unit"
+            @input="emitUpdate"
+          />
+          <input
+            v-model="element.notes"
+            placeholder="Notes"
+            class="notes"
+            @input="emitUpdate"
+          />
+          <button type="button" class="remove" @click="removeIngredient(index)">X</button>
+        </div>
+      </template>
+    </draggable>
     <button type="button" class="add" @click="addIngredient">+ Add Ingredient</button>
   </div>
 </template>
 
 <script>
+import draggable from 'vuedraggable';
+
 export default {
   name: 'IngredientEditor',
+  components: {
+    draggable,
+  },
   props: {
     modelValue: {
       type: Array,
@@ -92,11 +107,25 @@ export default {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
+    align-items: center;
+
+    .drag-handle {
+      flex-shrink: 0;
+      cursor: grab;
+      padding: 4px;
+      color: $ps-light-grey;
+      user-select: none;
+
+      &:active {
+        cursor: grabbing;
+      }
+    }
 
     input {
       padding: 8px;
       border: 1px solid $ps-lighter-grey;
       border-radius: 4px;
+      min-width: 0;
 
       &.quantity {
         flex: 0 0 60px;
@@ -116,7 +145,9 @@ export default {
     }
 
     .remove {
-      flex: 0 0 30px;
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
       background-color: $ps-button-red;
       color: white;
       border: none;

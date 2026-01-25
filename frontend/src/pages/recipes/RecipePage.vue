@@ -163,7 +163,7 @@ export default {
 
   .recipe-content {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 2fr 3fr;
     gap: 30px;
     margin-bottom: 30px;
 
