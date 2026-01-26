@@ -42,17 +42,19 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent, PropType } from 'vue';
 import draggable from 'vuedraggable';
+import { Ingredient } from '@/types/recipe';
 
-export default {
+export default defineComponent({
   name: 'IngredientEditor',
   components: {
     draggable,
   },
   props: {
     modelValue: {
-      type: Array,
+      type: Array as PropType<Ingredient[]>,
       default: () => []
     }
   },
@@ -60,12 +62,12 @@ export default {
     return {
       ingredients: this.modelValue.length > 0
         ? [...this.modelValue]
-        : [{ quantity: '', unit: '', name: '', notes: '' }]
+        : [{ quantity: '', unit: '', name: '', notes: '' }] as Ingredient[]
     }
   },
   watch: {
     modelValue: {
-      handler(newVal) {
+      handler(newVal: Ingredient[]) {
         if (JSON.stringify(newVal) !== JSON.stringify(this.ingredients)) {
           this.ingredients = newVal.length > 0
             ? [...newVal]
@@ -76,11 +78,11 @@ export default {
     }
   },
   methods: {
-    addIngredient() {
+    addIngredient(): void {
       this.ingredients.push({ quantity: '', unit: '', name: '', notes: '' });
       this.emitUpdate();
     },
-    removeIngredient(index) {
+    removeIngredient(index: number): void {
       this.ingredients.splice(index, 1);
       if (this.ingredients.length === 0) {
         this.addIngredient();
@@ -88,11 +90,11 @@ export default {
         this.emitUpdate();
       }
     },
-    emitUpdate() {
+    emitUpdate(): void {
       this.$emit('update:modelValue', this.ingredients);
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

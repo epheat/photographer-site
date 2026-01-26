@@ -76,19 +76,7 @@
 
     <template v-else>
       <div class="preview">
-        <div class="recipe-header">
-          <img v-if="pictureUrl" :src="pictureUrl" :alt="title" class="hero-image" />
-          <h1>{{ title || 'Untitled Recipe' }}</h1>
-          <div class="tags" v-if="parsedTags.length">
-            <span class="tag" v-for="tag in parsedTags" :key="tag">{{ tag }}</span>
-          </div>
-          <p class="description" v-if="description">{{ description }}</p>
-          <recipe-metadata :prepTime="prepTime" :cookTime="cookTime" :servings="servings" />
-        </div>
-        <div class="recipe-content">
-          <recipe-ingredients v-if="ingredients.length" :ingredients="ingredients" />
-          <recipe-instructions v-if="instructions" :instructions="instructions" />
-        </div>
+        <recipe-view :recipe="previewRecipe" />
       </div>
     </template>
 
@@ -100,9 +88,7 @@
 import Footer from '@/components/Footer.vue';
 import FormField from '@/components/FormField.vue';
 import IngredientEditor from '@/components/recipes/IngredientEditor.vue';
-import RecipeMetadata from '@/components/recipes/RecipeMetadata.vue';
-import RecipeIngredients from '@/components/recipes/RecipeIngredients.vue';
-import RecipeInstructions from '@/components/recipes/RecipeInstructions.vue';
+import RecipeView from '@/components/recipes/RecipeView.vue';
 import { marked } from 'marked';
 import { API, Auth } from 'aws-amplify';
 import { authStore } from "@/auth/store";
@@ -139,6 +125,19 @@ export default {
     },
     compiledInstructions() {
       return this.instructions ? marked(this.instructions) : '';
+    },
+    previewRecipe() {
+      return {
+        title: this.title,
+        pictureUrl: this.pictureUrl,
+        recipeTags: this.parsedTags,
+        description: this.description,
+        prepTime: this.prepTime,
+        cookTime: this.cookTime,
+        servings: this.servings,
+        ingredients: this.ingredients,
+        instructions: this.instructions,
+      };
     }
   },
   mounted() {
@@ -270,9 +269,7 @@ export default {
     Footer,
     FormField,
     IngredientEditor,
-    RecipeMetadata,
-    RecipeIngredients,
-    RecipeInstructions,
+    RecipeView,
   }
 }
 </script>
@@ -450,50 +447,5 @@ export default {
     }
   }
 
-  .preview {
-    .recipe-header {
-      text-align: center;
-      margin-bottom: 30px;
-
-      .hero-image {
-        max-width: 100%;
-        max-height: 300px;
-        object-fit: cover;
-        border-radius: 8px;
-        margin-bottom: 20px;
-      }
-
-      .tags {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px;
-        margin: 15px 0;
-
-        .tag {
-          background-color: $ps-jeans;
-          color: white;
-          padding: 4px 12px;
-          border-radius: 15px;
-          font-size: 0.85em;
-        }
-      }
-
-      .description {
-        font-style: italic;
-        color: $ps-text-default;
-      }
-    }
-
-    .recipe-content {
-      display: grid;
-      grid-template-columns: 2fr 3fr;
-      gap: 30px;
-
-      @media screen and (max-width: 768px) {
-        grid-template-columns: 1fr;
-      }
-    }
-  }
 }
 </style>

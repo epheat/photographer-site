@@ -18,10 +18,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent, PropType } from 'vue';
 import RecipeMetadata from './RecipeMetadata.vue';
 
-export default {
+export default defineComponent({
   name: 'RecipeCard',
   props: {
     postId: String,
@@ -29,17 +30,17 @@ export default {
     author: String,
     description: String,
     pictureUrl: String,
-    recipeTags: Array,
+    recipeTags: Array as PropType<string[]>,
     prepTime: Number,
     cookTime: Number,
     servings: Number,
     createdDate: Number,
   },
   computed: {
-    localeDateString() {
-      return new Date(this.createdDate).toLocaleDateString();
+    localeDateString(): string {
+      return new Date(this.createdDate as number).toLocaleDateString();
     },
-    trimmedDescription() {
+    trimmedDescription(): string | undefined {
       if (this.description && this.description.length > 100) {
         return this.description.substring(0, 100) + '...';
       }
@@ -49,7 +50,7 @@ export default {
   components: {
     RecipeMetadata,
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

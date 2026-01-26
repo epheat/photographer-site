@@ -5,10 +5,11 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import { marked } from 'marked';
 
-export default {
+export default defineComponent({
   name: 'RecipeInstructions',
   props: {
     instructions: {
@@ -17,11 +18,11 @@ export default {
     }
   },
   computed: {
-    renderedInstructions() {
-      return marked(this.instructions);
+    renderedInstructions(): string {
+      return marked(this.instructions) as string;
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

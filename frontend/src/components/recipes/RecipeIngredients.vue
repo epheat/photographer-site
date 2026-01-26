@@ -12,16 +12,19 @@
   </div>
 </template>
 
-<script>
-export default {
+<script lang="ts">
+import { defineComponent, PropType } from 'vue';
+import { Ingredient } from '@/types/recipe';
+
+export default defineComponent({
   name: 'RecipeIngredients',
   props: {
     ingredients: {
-      type: Array,
+      type: Array as PropType<Ingredient[]>,
       required: true,
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

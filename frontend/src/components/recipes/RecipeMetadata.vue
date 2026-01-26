@@ -19,8 +19,10 @@
   </div>
 </template>
 
-<script>
-export default {
+<script lang="ts">
+import { defineComponent } from 'vue';
+
+export default defineComponent({
   name: 'RecipeMetadata',
   props: {
     prepTime: Number,
@@ -29,7 +31,7 @@ export default {
     compact: Boolean,
   },
   computed: {
-    totalTime() {
+    totalTime(): number | null {
       if (this.prepTime && this.cookTime) {
         return this.prepTime + this.cookTime;
       }
@@ -37,7 +39,7 @@ export default {
     }
   },
   methods: {
-    formatTime(minutes) {
+    formatTime(minutes: number): string {
       if (minutes < 60) {
         return `${minutes} min`;
       }
@@ -49,7 +51,7 @@ export default {
       return `${hours} hr ${mins} min`;
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

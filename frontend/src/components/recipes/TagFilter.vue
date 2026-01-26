@@ -17,26 +17,28 @@
   </div>
 </template>
 
-<script>
-export default {
+<script lang="ts">
+import { defineComponent, PropType } from 'vue';
+
+export default defineComponent({
   name: 'TagFilter',
   props: {
     availableTags: {
-      type: Array,
+      type: Array as PropType<string[]>,
       required: true,
     },
     modelValue: {
-      type: Array,
+      type: Array as PropType<string[]>,
       default: () => []
     }
   },
   computed: {
-    selectedTags() {
+    selectedTags(): string[] {
       return this.modelValue;
     }
   },
   methods: {
-    toggleTag(tag) {
+    toggleTag(tag: string): void {
       const tags = [...this.selectedTags];
       const index = tags.indexOf(tag);
       if (index === -1) {
@@ -46,11 +48,11 @@ export default {
       }
       this.$emit('update:modelValue', tags);
     },
-    clearFilter() {
+    clearFilter(): void {
       this.$emit('update:modelValue', []);
     }
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>
