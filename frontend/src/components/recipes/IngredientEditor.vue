@@ -2,8 +2,8 @@
   <div class="ps-ingredient-editor">
     <h3>Ingredients</h3>
     <draggable
-      v-model="ingredients"
-      :item-key="(el) => el"
+      v-model="rows"
+      :item-key="(el: any) => el"
       handle=".drag-handle"
       @end="emitUpdate"
     >
@@ -12,23 +12,26 @@
           <span class="drag-handle">&#9776;</span>
           <input
             v-model="element.name"
-            placeholder="Ingredient name"
+            :placeholder="capitalize(element.rowType) + ' name'"
             class="name"
             @input="emitUpdate"
           />
           <input
+            v-if="element.rowType == 'ingredient'"
             v-model="element.quantity"
             placeholder="Qty"
             class="quantity"
             @input="emitUpdate"
           />
           <input
+            v-if="element.rowType == 'ingredient'"
             v-model="element.unit"
             placeholder="Unit"
             class="unit"
             @input="emitUpdate"
           />
           <input
+            v-if="element.rowType == 'ingredient'"
             v-model="element.notes"
             placeholder="Notes"
             class="notes"
@@ -38,14 +41,15 @@
         </div>
       </template>
     </draggable>
-    <button type="button" class="add" @click="addIngredient">+ Add Ingredient</button>
+    <button type="button" class="add" @click="addIngredient('ingredient')">+ Add Ingredient</button>
+    <button type="button" class="add" @click="addIngredient('section')">+ Add Section</button>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from 'vue';
 import draggable from 'vuedraggable';
-import { Ingredient } from '@/types/recipe';
+import { IngredientRow } from '@/types/recipe';
 
 export default defineComponent({
   name: 'IngredientEditor',
@@ -54,44 +58,38 @@ export default defineComponent({
   },
   props: {
     modelValue: {
-      type: Array as PropType<Ingredient[]>,
+      type: Array as PropType<IngredientRow[]>,
       default: () => []
     }
   },
   data() {
     return {
-      ingredients: this.modelValue.length > 0
-        ? [...this.modelValue]
-        : [{ quantity: '', unit: '', name: '', notes: '' }] as Ingredient[]
+      rows: this.modelValue as IngredientRow[]
     }
   },
   watch: {
-    modelValue: {
-      handler(newVal: Ingredient[]) {
-        if (JSON.stringify(newVal) !== JSON.stringify(this.ingredients)) {
-          this.ingredients = newVal.length > 0
-            ? [...newVal]
-            : [{ quantity: '', unit: '', name: '', notes: '' }];
-        }
-      },
-      deep: true
+    modelValue(newValue: IngredientRow[]) {
+      this.rows = newValue;
     }
   },
   methods: {
-    addIngredient(): void {
-      this.ingredients.push({ quantity: '', unit: '', name: '', notes: '' });
+    capitalize(str: string): string {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    },
+    addIngredient(rowType: 'ingredient' | 'section'): void {
+      this.rows.push({ rowType: rowType, quantity: '', unit: '', name: '', notes: '' });
       this.emitUpdate();
     },
     removeIngredient(index: number): void {
-      this.ingredients.splice(index, 1);
-      if (this.ingredients.length === 0) {
-        this.addIngredient();
+      this.rows.splice(index, 1);
+      if (this.rows.length === 0) {
+        this.addIngredient('ingredient');
       } else {
         this.emitUpdate();
       }
     },
     emitUpdate(): void {
-      this.$emit('update:modelValue', this.ingredients);
+      this.$emit('update:modelValue', this.rows);
     }
   }
 })
@@ -103,6 +101,10 @@ export default defineComponent({
 .ps-ingredient-editor {
   h3 {
     margin-bottom: 15px;
+  }
+
+  button {
+    margin-right: 10px;
   }
 
   .ingredient-row {

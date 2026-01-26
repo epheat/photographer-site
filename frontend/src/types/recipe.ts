@@ -5,6 +5,16 @@ export interface Ingredient {
   notes?: string;
 }
 
+export interface IngredientSection {
+  name: string;
+  ingredients: Ingredient[]
+}
+
+// used for editor page
+export interface IngredientRow extends Ingredient {
+  rowType: "ingredient" | "section"
+}
+
 export interface Recipe {
   postId?: string;
   title: string;
@@ -16,7 +26,7 @@ export interface Recipe {
   prepTime?: number;
   cookTime?: number;
   servings?: number;
-  ingredients: Ingredient[];
+  ingredients: (IngredientSection | Ingredient)[];
   instructions: string;
   previous?: { postId: string };
   next?: { postId: string };

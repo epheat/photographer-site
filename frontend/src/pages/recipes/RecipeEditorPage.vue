@@ -42,7 +42,7 @@
       </div>
 
       <div class="form-section">
-        <ingredient-editor v-model="ingredients" />
+        <ingredient-editor v-model="ingredientRows" />
       </div>
 
       <div class="form-section">
@@ -84,18 +84,39 @@
   </div>
 </template>
 
-<script>
+<script lang="ts">
+import { defineComponent } from 'vue';
 import Footer from '@/components/Footer.vue';
 import FormField from '@/components/FormField.vue';
 import IngredientEditor from '@/components/recipes/IngredientEditor.vue';
 import RecipeView from '@/components/recipes/RecipeView.vue';
+import { Recipe, Ingredient, IngredientRow, IngredientSection } from '@/types/recipe';
 import { marked } from 'marked';
 import { API, Auth } from 'aws-amplify';
 import { authStore } from "@/auth/store";
 
-export default {
+interface RecipeEditorData {
+  mode: 'edit' | 'preview';
+  title: string;
+  description: string;
+  tagsInput: string;
+  prepTime: number | null;
+  cookTime: number | null;
+  servings: number | null;
+  ingredientRows: IngredientRow[];
+  instructions: string;
+  pictureUrl: string;
+  imageData: File | null;
+  imageFileName: string | null;
+  saving: boolean;
+  uploading: boolean;
+  successMessage: string;
+  errorMessage: string;
+}
+
+export default defineComponent({
   name: 'RecipeEditorPage',
-  data() {
+  data(): RecipeEditorData {
     return {
       mode: 'edit',
       title: '',
@@ -104,7 +125,7 @@ export default {
       prepTime: null,
       cookTime: null,
       servings: null,
-      ingredients: [],
+      ingredientRows: [{rowType: 'ingredient', name: ''}],
       instructions: '',
       pictureUrl: '',
       imageData: null,
@@ -116,28 +137,18 @@ export default {
     }
   },
   computed: {
-    isEditing() {
+    isEditing(): boolean {
       return !!this.$route.params.postId;
     },
-    parsedTags() {
+    parsedTags(): string[] {
       if (!this.tagsInput) return [];
       return this.tagsInput.split(',').map(t => t.trim()).filter(t => t);
     },
-    compiledInstructions() {
-      return this.instructions ? marked(this.instructions) : '';
+    compiledInstructions(): string {
+      return this.instructions ? marked(this.instructions) as string : '';
     },
-    previewRecipe() {
-      return {
-        title: this.title,
-        pictureUrl: this.pictureUrl,
-        recipeTags: this.parsedTags,
-        description: this.description,
-        prepTime: this.prepTime,
-        cookTime: this.cookTime,
-        servings: this.servings,
-        ingredients: this.ingredients,
-        instructions: this.instructions,
-      };
+    previewRecipe(): Recipe {
+      return this.getRecipe();
     }
   },
   mounted() {
@@ -146,17 +157,97 @@ export default {
     }
   },
   methods: {
-    async loadRecipe() {
+    rowsToIngredients(rows: IngredientRow[]): (IngredientSection | Ingredient)[] {
+      const result: (IngredientSection | Ingredient)[] = [];
+      let currentSection: IngredientSection | null = null;
+
+      for (const row of rows) {
+        if (row.rowType === 'section') {
+          // Push current section if it exists
+          if (currentSection) {
+            result.push(currentSection);
+          }
+          // Start a new section
+          currentSection = { name: row.name, ingredients: [] };
+        } else {
+          const ingredient: Ingredient = { name: row.name };
+          if (row.quantity) ingredient.quantity = row.quantity;
+          if (row.unit) ingredient.unit = row.unit;
+          if (row.notes) ingredient.notes = row.notes;
+
+          if (currentSection) {
+            // Add to current section
+            currentSection.ingredients.push(ingredient);
+          } else {
+            // No section yet - add as standalone ingredient
+            result.push(ingredient);
+          }
+        }
+      }
+
+      // Push the last section if it exists
+      if (currentSection) {
+        result.push(currentSection);
+      }
+
+      return result;
+    },
+    ingredientsToRows(ingredients: (IngredientSection | Ingredient)[]): IngredientRow[] {
+      const rows: IngredientRow[] = [];
+
+      const isSection = (item: IngredientSection | Ingredient): item is IngredientSection => {
+        return 'ingredients' in item;
+      };
+
+      for (const item of ingredients) {
+        if (isSection(item)) {
+          rows.push({ rowType: 'section', name: item.name });
+          for (const ingredient of item.ingredients) {
+            rows.push({
+              rowType: 'ingredient',
+              name: ingredient.name,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              notes: ingredient.notes,
+            });
+          }
+        } else {
+          rows.push({
+            rowType: 'ingredient',
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            notes: item.notes,
+          });
+        }
+      }
+
+      return rows;
+    },
+    getRecipe(): Recipe {
+      return {
+        title: this.title,
+        pictureUrl: this.pictureUrl,
+        recipeTags: this.parsedTags,
+        description: this.description,
+        prepTime: this.prepTime ?? undefined,
+        cookTime: this.cookTime ?? undefined,
+        servings: this.servings ?? undefined,
+        ingredients: this.rowsToIngredients(this.ingredientRows),
+        instructions: this.instructions,
+      };
+    },
+    async loadRecipe(): Promise<void> {
       try {
-        const response = await API.get('ps-api', `/posts/${this.$route.params.postId}`);
-        const recipe = response.post;
+        const response = await API.get('ps-api', `/posts/${this.$route.params.postId}`, {});
+        const recipe = response.post as Recipe;
         this.title = recipe.title || '';
         this.description = recipe.description || '';
         this.tagsInput = recipe.recipeTags ? recipe.recipeTags.join(', ') : '';
-        this.prepTime = recipe.prepTime || null;
-        this.cookTime = recipe.cookTime || null;
-        this.servings = recipe.servings || null;
-        this.ingredients = recipe.ingredients || [];
+        this.prepTime = recipe.prepTime ?? null;
+        this.cookTime = recipe.cookTime ?? null;
+        this.servings = recipe.servings ?? null;
+        this.ingredientRows = recipe.ingredients ? this.ingredientsToRows(recipe.ingredients) : [];
         this.instructions = recipe.instructions || '';
         this.pictureUrl = recipe.pictureUrl || '';
       } catch (err) {
@@ -164,11 +255,12 @@ export default {
         console.log(err);
       }
     },
-    onFileChange(event) {
-      this.imageData = event.target.files[0];
-      this.imageFileName = event.target.files[0]?.name;
+    onFileChange(event: Event): void {
+      const target = event.target as HTMLInputElement;
+      this.imageData = target.files?.[0] ?? null;
+      this.imageFileName = target.files?.[0]?.name ?? null;
     },
-    async uploadImage() {
+    async uploadImage(): Promise<void> {
       if (!this.imageData) return;
       this.uploading = true;
       this.errorMessage = '';
@@ -208,12 +300,12 @@ export default {
       }
       this.uploading = false;
     },
-    async submit() {
+    async submit(): Promise<void> {
       this.saving = true;
       this.errorMessage = '';
       this.successMessage = '';
 
-      if (!this.title || !this.instructions || this.ingredients.length === 0) {
+      if (!this.title || !this.instructions || this.ingredientRows.length === 0) {
         this.errorMessage = 'Title, instructions, and at least one ingredient are required.';
         this.saving = false;
         return;
@@ -230,15 +322,7 @@ export default {
         const payload = {
           post: {
             postType: 'RECIPE',
-            title: this.title,
-            description: this.description,
-            recipeTags: this.parsedTags,
-            prepTime: this.prepTime,
-            cookTime: this.cookTime,
-            servings: this.servings,
-            ingredients: this.ingredients,
-            instructions: this.instructions,
-            pictureUrl: this.pictureUrl,
+            ...this.getRecipe()
           }
         };
 
@@ -259,7 +343,7 @@ export default {
           }
         }
       } catch (err) {
-        this.errorMessage = err.message || 'Failed to save recipe.';
+        this.errorMessage = (err as Error).message || 'Failed to save recipe.';
         console.log(err);
       }
       this.saving = false;
@@ -271,7 +355,7 @@ export default {
     IngredientEditor,
     RecipeView,
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>
