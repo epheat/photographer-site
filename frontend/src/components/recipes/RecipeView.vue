@@ -8,7 +8,7 @@
       <div class="tags" v-if="recipe.recipeTags && recipe.recipeTags.length">
         <span class="tag" v-for="tag in recipe.recipeTags" :key="tag">{{ tag }}</span>
       </div>
-      <p class="description" v-if="recipe.description">{{ recipe.description }}</p>
+      <div class="description" v-if="recipe.description" v-html="parsedDescription"></div>
       <recipe-metadata
         :prepTime="recipe.prepTime"
         :cookTime="recipe.cookTime"
@@ -24,6 +24,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from 'vue';
+import { marked } from 'marked';
 import { Recipe } from '@/types/recipe';
 import RecipeMetadata from '@/components/recipes/RecipeMetadata.vue';
 import RecipeIngredients from '@/components/recipes/RecipeIngredients.vue';
@@ -41,7 +42,10 @@ export default defineComponent({
     formattedDate(): string {
       if (!this.recipe.createdDate) return '';
       return new Date(this.recipe.createdDate).toLocaleDateString();
-    }
+    },
+    parsedDescription(): string {
+      return marked.parse(this.recipe.description ?? '') as string;
+    },
   },
   components: {
     RecipeMetadata,
@@ -104,6 +108,14 @@ export default defineComponent({
       color: $ps-text-default;
       max-width: 600px;
       margin: 15px auto;
+
+      :deep(a) {
+        color: $ps-jeans;
+      }
+
+      :deep(p) {
+        margin: 0;
+      }
     }
   }
 
