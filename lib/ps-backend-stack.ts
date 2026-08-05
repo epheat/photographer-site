@@ -329,6 +329,15 @@ export class PSBackendStack extends Stack {
     });
     gameDataTable.grantReadWriteData(submitMukHuntPhotoLambda);
     imageMetadataTable.grantReadWriteData(submitMukHuntPhotoLambda);
+    const revealMukHuntHintLambda = new nodejs.NodejsFunction(this, 'reveal-muk-hunt-hint-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'revealHint',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(revealMukHuntHintLambda);
     const deleteMukHuntSubmissionLambda = new nodejs.NodejsFunction(this, 'delete-muk-hunt-submission-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/mukhunt.ts"),
@@ -554,6 +563,12 @@ export class PSBackendStack extends Stack {
       path: '/games/mukhunt/submissions',
       methods: [apigateway.HttpMethod.GET],
       integration: new integrations.HttpLambdaIntegration('get-my-muk-hunt-submissions-integration', getMyMukHuntSubmissionsLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/hints',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('reveal-muk-hunt-hint-integration', revealMukHuntHintLambda),
       authorizer: authorizer,
     });
     httpApi.addRoutes({

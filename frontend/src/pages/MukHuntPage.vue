@@ -22,9 +22,11 @@
       :show="showSubmitModal"
       :clue="selectedClue"
       :existingSubmission="selectedClue ? submissionByClueId[selectedClue.clueId] : null"
+      :revealedHint="selectedClue ? hintsUsed[selectedClue.clueId] : null"
       @close="closeSubmitModal"
       @submitted="onSubmitted"
       @deleted="onDeleted"
+      @revealed="onHintRevealed"
     />
 
     <Modal :show="showDeleteModal" @close="closeDeleteModal">
@@ -174,6 +176,20 @@
           <span>Prefer a selfie &mdash; opens the front camera on phones</span>
         </label>
 
+        <label class="field">
+          <span class="field-label">Hint <i>(optional)</i></span>
+          <textarea v-model="clueForm.hint" rows="2" placeholder="It's the one with the red roof."></textarea>
+        </label>
+        <div class="field-row" v-if="clueForm.hint.trim()">
+          <label class="field">
+            <span class="field-label">Hint cost</span>
+            <input type="number" inputmode="numeric" v-model.number="clueForm.hintPenalty" min="0" :max="clueForm.points" />
+          </label>
+          <div class="field hint-explainer">
+            Deducted if a player reads the hint before submitting. Worth {{ Math.max(0, (Number(clueForm.points) || 0) - (Number(clueForm.hintPenalty) || 0)) }} pts with the hint.
+          </div>
+        </div>
+
         <div class="form-actions">
           <Button submit @press="saveClue">{{ editingClueId ? "Save changes" : "Create clue" }}</Button>
           <Button info v-if="editingClueId !== null" @press="resetClueForm">Cancel</Button>
@@ -206,6 +222,8 @@ const emptyClueForm = () => ({
   points: 10,
   sortOrder: 10,
   selfie: false,
+  hint: "",
+  hintPenalty: 0,
 });
 
 // defineComponent rather than a bare options object: the routes array is typed as
@@ -224,6 +242,8 @@ export default defineComponent({
       clues: [],
       submissions: [],
       userPoints: { points: 0, pointHistory: [] },
+      // clueId -> { text, penalty } for hints this player has already paid for
+      hintsUsed: {},
       showSubmitModal: false,
       selectedClue: null,
 
@@ -318,6 +338,7 @@ export default defineComponent({
         });
         this.submissions = response.submissions ?? [];
         this.userPoints = response.userPoints ?? { points: 0, pointHistory: [] };
+        this.hintsUsed = response.hintsUsed ?? {};
       } catch (err) {
         this.errorMessage = this.readError(err);
       }
@@ -344,6 +365,9 @@ export default defineComponent({
       this.successMessage = `Nice one! ${response.totalPoints} points so far.`;
       this.getMySubmissions();
     },
+    onHintRevealed({ clueId, hint }) {
+      this.hintsUsed = { ...this.hintsUsed, [clueId]: hint };
+    },
     onDeleted(response) {
       this.closeSubmitModal();
       this.successMessage = `Photo deleted. ${response.totalPoints} points remaining.`;
@@ -358,6 +382,9 @@ export default defineComponent({
         points: clue.points,
         sortOrder: clue.sortOrder ?? 0,
         selfie: clue.selfie ?? false,
+        // getHunt only returns hint text to admins, so this is populated for the people who can edit
+        hint: clue.hint ?? "",
+        hintPenalty: clue.hintPenalty ?? 0,
       };
       this.editingClueId = clue.clueId;
     },
@@ -375,6 +402,8 @@ export default defineComponent({
         points: Number(this.clueForm.points),
         sortOrder: Number(this.clueForm.sortOrder),
         selfie: this.clueForm.selfie,
+        hint: this.clueForm.hint.trim(),
+        hintPenalty: Number(this.clueForm.hintPenalty) || 0,
       };
       if (!CLUE_ID_PATTERN.test(clue.clueId)) {
         this.errorMessage = 'Clue id must be lowercase letters, numbers, and single hyphens, e.g. "lighthouse-selfie".';
@@ -386,6 +415,10 @@ export default defineComponent({
       }
       if (Number.isNaN(clue.points) || clue.points < 0) {
         this.errorMessage = "Points must be a non-negative number.";
+        return;
+      }
+      if (clue.hint && clue.hintPenalty > clue.points) {
+        this.errorMessage = `Hint cost can't exceed the clue's ${clue.points} points.`;
         return;
       }
       try {
@@ -764,6 +797,13 @@ h2 {
     gap: 12px;
 
     .field { flex: 1; }
+  }
+  .hint-explainer {
+    align-self: flex-end;
+    padding-bottom: 10px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: $mh-muted;
   }
   .checkbox-field {
     @include mh-tappable;

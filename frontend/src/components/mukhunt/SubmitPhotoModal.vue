@@ -8,6 +8,17 @@
     </template>
 
     <div class="submit-body">
+      <!-- sits directly under the clue text, since it's part of reading the clue -->
+      <div class="hint-panel" v-if="revealedHint">
+        <div class="hint-label">Hint<template v-if="revealedHint.penalty"> &middot; cost {{ revealedHint.penalty }} pts</template></div>
+        <p class="hint-text">{{ revealedHint.text }}</p>
+      </div>
+      <div class="hint-offer" v-else-if="clue?.hasHint">
+        <span class="hint-button" :class="{ disabled: revealingHint }" @click="revealHint">
+          {{ revealingHint ? "Getting hint…" : hintOfferLabel }}
+        </span>
+      </div>
+
       <div class="preview" v-if="displayedImage">
         <div class="preview-label">{{ previewUrl ? "New photo" : "Your photo" }}</div>
         <img :src="displayedImage" alt="your photo" />
@@ -131,6 +142,8 @@ export default {
     show: Boolean,
     clue: Object,
     existingSubmission: Object,
+    // { text, penalty } once the player has paid for this clue's hint
+    revealedHint: Object,
   },
   data() {
     return {
@@ -141,6 +154,7 @@ export default {
       uploadPercent: 0,
       errorMessage: "",
       confirmingDelete: false,
+      revealingHint: false,
       maxCaption: MAX_CAPTION_LENGTH,
     }
   },
@@ -154,6 +168,12 @@ export default {
     },
     // a new submission needs a photo; an edit needs either a new photo or a changed caption,
     // so confirming can't be pressed until there's actually something to confirm
+    // the cost goes in the label, so nobody spends points without having seen the price
+    hintOfferLabel() {
+      const penalty = this.clue?.hintPenalty ?? 0;
+      if (this.existingSubmission) return "Show hint";
+      return penalty > 0 ? `Show hint (costs ${penalty} pts)` : "Show hint";
+    },
     hasChanges() {
       if (!this.existingSubmission) return !!this.file;
       const originalCaption = (this.existingSubmission.caption ?? "").trim();
@@ -210,6 +230,23 @@ export default {
       this.releasePreview();
       this.file = file;
       this.previewUrl = URL.createObjectURL(file);
+    },
+    async revealHint() {
+      if (this.revealingHint) return;
+      this.errorMessage = "";
+      this.revealingHint = true;
+      try {
+        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        const response = await API.post('ps-api', '/games/mukhunt/hints', {
+          body: { clueId: this.clue.clueId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        this.$emit('revealed', { clueId: this.clue.clueId, hint: response.hint });
+      } catch (err) {
+        this.errorMessage = err.response?.data?.message ?? err.message;
+      } finally {
+        this.revealingHint = false;
+      }
     },
     // first press arms it, second one actually deletes
     onDeletePress() {
@@ -364,6 +401,47 @@ export default {
 }
 
 .submit-body {
+  .hint-offer {
+    margin-bottom: 12px;
+
+    .hint-button {
+      @include mh-tappable;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      border: 2px dashed $mh-blue;
+      border-radius: $mh-radius;
+      color: $mh-blue;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+
+      &.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+    }
+  }
+
+  .hint-panel {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border: 2px solid $mh-blue;
+    border-radius: $mh-radius;
+    background-color: rgba(97, 115, 155, 0.09);
+
+    .hint-label {
+      @include mh-label;
+      color: $mh-blue;
+    }
+    .hint-text {
+      margin: 4px 0 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+  }
+
   .preview {
     position: relative;
     margin-bottom: 12px;

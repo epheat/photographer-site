@@ -25,6 +25,7 @@ const s3Client = new S3Client({ region: "us-east-1" });
 const clueResourceId = (clueId: string) => `Clue-${clueId}`;
 const submissionResourceId = (clueId: string) => `${ENTITY_ID}-Submission-${clueId}`;
 const userPointsResourceId = () => `${ENTITY_ID}-UserPoints`;
+const hintsUsedResourceId = () => `${ENTITY_ID}-HintsUsed`;
 
 // Clue ids are hand-written slugs rather than uuids, because they show up in the sort key of every
 // submission and in every point history entry, where "lighthouse-selfie" beats a uuid when reading
@@ -45,6 +46,7 @@ const ALLOWED_CONTENT_TYPES = [
   "image/gif",
 ];
 const MAX_CAPTION_LENGTH = 280;
+const MAX_HINT_LENGTH = 500;
 
 /**
  * GET /games/mukhunt/hunt
@@ -68,9 +70,21 @@ async function getHuntActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
     if (!hunt) {
       return error({ message: `No hunt record found for ${ENTITY_ID}.` });
     }
+    // Admins get the hint text back so the edit form can populate; players must not, or the hint
+    // is free to anyone who opens devtools and the penalty means nothing. They get hasHint and the
+    // penalty instead, which is enough to render "Show hint (-5 pts)".
+    const isAdmin = userHasGroup(event, "Admins");
     const clues = items
       .filter(item => item.resourceId.startsWith("Clue-") && !item.deleted)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(clue => {
+        const { hint, ...rest } = clue;
+        return {
+          ...rest,
+          hasHint: !!hint,
+          ...(isAdmin ? { hint: hint ?? "" } : {}),
+        };
+      });
 
     return success({
       message: "Success.",
@@ -120,6 +134,20 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
     return error({ message: "Invalid Request: sortOrder must be a number." });
   }
 
+  const hint = typeof clue.hint === "string" ? clue.hint.trim() : "";
+  if (hint.length > MAX_HINT_LENGTH) {
+    return error({ message: `Hint must be ${MAX_HINT_LENGTH} characters or fewer.` });
+  }
+  const hintPenalty = clue.hintPenalty ?? 0;
+  if (typeof hintPenalty !== "number" || hintPenalty < 0) {
+    return error({ message: "Invalid Request: hintPenalty must be a non-negative number." });
+  }
+  // a penalty larger than the clue is worth would just floor at zero, which is a confusing way to
+  // find out you typed the wrong number
+  if (hint && hintPenalty > clue.points) {
+    return error({ message: `Hint penalty can't exceed the clue's ${clue.points} points.` });
+  }
+
   const clueId = clue.clueId;
   try {
     await ddb.put({
@@ -134,6 +162,8 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
         points: clue.points,
         selfie: clue.selfie ?? false,
         sortOrder: clue.sortOrder ?? 0,
+        hint: hint,
+        hintPenalty: hint ? hintPenalty : 0,
         lastUpdatedDate: Date.now(),
       },
       ...(request.allowOverwrite ? {} : { ConditionExpression: "attribute_not_exists(resourceId)" }),
@@ -283,6 +313,82 @@ async function getUploadUrlActivity(event: APIGatewayProxyEventV2WithJWTAuthoriz
 }
 
 /**
+ * Reads the record of which hints a player has already paid for.
+ *
+ * Each entry snapshots the text and penalty as they were at reveal time, so a later edit to the
+ * clue can't change what someone was charged, and reading a hint back needs no join.
+ */
+async function getHintsUsed(sub: string) {
+  const result = await ddb.get({
+    TableName: tableName,
+    Key: { entityId: sub, resourceId: hintsUsedResourceId() },
+  });
+  return result.Item?.hints ?? {};
+}
+
+/**
+ * POST /games/mukhunt/hints
+ *
+ * reveals a clue's hint and records that the player has seen it, which is what makes the penalty
+ * stick. Revealing twice is free - the record is keyed by clue, so reopening a hint you've already
+ * paid for doesn't charge again.
+ */
+async function revealHintActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: Context): Promise<APIGatewayProxyResultV2> {
+  context.metrics.setProperty("RequestId", context.awsRequestId);
+  const { sub } = getUserInfo(event);
+  if (!event.body) { return error({ message: "Invalid Request: Missing post body." }); }
+  const request = JSON.parse(event.body);
+  if (!request.clueId) {
+    return error({ message: "Invalid Request: missing clueId." });
+  }
+
+  try {
+    const clueResult = await ddb.get({
+      TableName: tableName,
+      Key: { entityId: ENTITY_ID, resourceId: clueResourceId(request.clueId) },
+    });
+    const clue = clueResult.Item;
+    if (!clue || clue.deleted) {
+      return error({ message: `No clue found with id "${request.clueId}".` });
+    }
+    if (!clue.hint) {
+      return error({ message: "That clue doesn't have a hint." });
+    }
+
+    const hints = await getHintsUsed(sub);
+    if (hints[request.clueId]) {
+      // already paid for; hand back what they were charged for rather than the current text
+      return success({
+        message: "Success.",
+        hint: hints[request.clueId],
+        alreadyRevealed: true,
+      });
+    }
+
+    const revealed = {
+      text: clue.hint,
+      penalty: clue.hintPenalty ?? 0,
+      revealedDate: Date.now(),
+    };
+    await ddb.put({
+      TableName: tableName,
+      Item: {
+        entityId: sub,
+        resourceId: hintsUsedResourceId(),
+        resourceType: "MukHuntHintsUsed",
+        hints: { ...hints, [request.clueId]: revealed },
+        lastUpdatedDate: revealed.revealedDate,
+      },
+    });
+
+    return success({ message: "Success.", hint: revealed, alreadyRevealed: false });
+  } catch (err) {
+    console.log(err);
+    return fault({ message: err });
+  }
+}
+
+/**
  * POST /games/mukhunt/submissions
  *
  * files an uploaded photo against a clue. Resubmitting replaces the photo and leaves points alone.
@@ -358,6 +464,12 @@ async function submitPhotoActivity(event: APIGatewayProxyEventV2WithJWTAuthorize
       Key: { entityId: sub, resourceId: submissionResourceId(request.clueId) },
     });
 
+    // Charged only if the hint was revealed before this scores. Someone who submits first and reads
+    // the hint afterwards keeps full points, since awardPoints won't run a second time.
+    const hints = await getHintsUsed(sub);
+    const hintPenalty = hints[request.clueId]?.penalty ?? 0;
+    const pointsAwarded = Math.max(0, clue.points - hintPenalty);
+
     const submission = {
       entityId: sub,
       resourceId: submissionResourceId(request.clueId),
@@ -368,7 +480,8 @@ async function submitPhotoActivity(event: APIGatewayProxyEventV2WithJWTAuthorize
       caption: caption,
       // deliberately not named `points`: that's the pointsIndex sort key, and submissions have no
       // business showing up in an index meant for ranking players.
-      pointsAwarded: clue.points,
+      pointsAwarded: pointsAwarded,
+      hintPenalty: hintPenalty,
       author: username,
       status: "ACCEPTED",
       submittedDate: existing.Item?.submittedDate ?? submittedDate,
@@ -377,7 +490,7 @@ async function submitPhotoActivity(event: APIGatewayProxyEventV2WithJWTAuthorize
     // an unconditional put, which is what makes replacing a photo work.
     await ddb.put({ TableName: tableName, Item: submission });
 
-    const totalPoints = await awardPoints(sub, username, request.clueId, clue.points, submittedDate);
+    const totalPoints = await awardPoints(sub, username, request.clueId, pointsAwarded, submittedDate);
 
     return success({
       message: "Success.",
@@ -542,10 +655,14 @@ async function getMySubmissionsActivity(event: APIGatewayProxyEventV2WithJWTAuth
       TableName: tableName,
       Key: { entityId: sub, resourceId: userPointsResourceId() },
     });
+    // hints they've already paid for come back with their text, so reopening a clue shows the
+    // hint again without another round trip
+    const hintsUsed = await getHintsUsed(sub);
     return success({
       message: "Success.",
       submissions: submissions.Items ?? [],
       userPoints: points.Item ?? { points: 0, pointHistory: [] },
+      hintsUsed: hintsUsed,
     });
   } catch (err) {
     console.log(err);
@@ -608,6 +725,9 @@ export const getUploadUrl = middy(getUploadUrlActivity)
 
 export const submitPhoto = middy(submitPhotoActivity)
   .use(cloudwatchMetrics(getMetricsOptions("SubmitPhoto")));
+
+export const revealHint = middy(revealHintActivity)
+  .use(cloudwatchMetrics(getMetricsOptions("RevealHint")));
 
 export const deleteSubmission = middy(deleteSubmissionActivity)
   .use(cloudwatchMetrics(getMetricsOptions("DeleteSubmission")));

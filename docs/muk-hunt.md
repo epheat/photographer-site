@@ -32,6 +32,16 @@ Hunt id is the string `"2027"`, giving `MukHunt-2027` as the game entity — the
 **Clues are soft-deleted.** `deleteClue` sets `deleted: true` and `getHunt` filters those rows out. Submissions point at a clue by id, so keeping the record means they can always resolve back to a title when the album is built, and the id stays claimed rather than being re-adopted by a later clue that happens to reuse the name. Restoring a clue is just a `putClue` with `allowOverwrite` — the put replaces the whole item, so the flag goes away on its own. Actually purging deleted clues is a later cleanup, not something the API does.
 
 Submissions, by contrast, can be hard-deleted whenever that's needed. Nothing references them.
+
+### Hints
+
+A clue can carry a `hint` and a `hintPenalty`. Reading the hint before submitting costs that many points; the clue is then worth `points - hintPenalty`, floored at zero. Authored in the same admin form as the rest of the clue.
+
+**The hint text never ships to players in `getHunt`.** If it did, anyone could read it in devtools and the penalty would be meaningless, and the client would be on the honour system to report having seen it. Players get `hasHint` and `hintPenalty` — enough to render "Show hint (costs 5 pts)" — and the text only arrives from `POST /games/mukhunt/hints`, which records the reveal server-side as it answers. Admins do get the text back from `getHunt`, so the edit form can populate.
+
+Reveals are recorded on one user-owned row, `MukHunt-<huntId>-HintsUsed`, holding a `clueId -> {text, penalty, revealedDate}` map. Each entry **snapshots the text and penalty at reveal time**, so editing a clue later can't retroactively change what someone was charged, and reading a hint back needs no join against the clue.
+
+Revealing twice is free — the map is keyed by clue, so reopening a hint already paid for doesn't charge again. Submitting first and reading the hint afterwards also costs nothing, since `awardPoints` won't run a second time for a clue that already scored. Deleting a submission and resubmitting will charge the penalty, which is consistent: the hint is still revealed.
 | Submission | `<cognito sub>` | `MukHunt-<huntId>-Submission-<clueId>` | `clueId`, `imageId`, `imageUrl`, `caption?`, `pointsAwarded` (N), `author`, `submittedDate`, `updatedDate`, `status: "ACCEPTED"`, `resourceType: "MukHuntSubmission"` |
 | UserPoints | `<cognito sub>` | `MukHunt-<huntId>-UserPoints` | `points` (N), `pointHistory[]`, `author`, `resourceType: "MukHuntUserPoints"` |
 
@@ -84,7 +94,8 @@ All routes carry the shared `HttpUserPoolAuthorizer`. The API's CORS config allo
 | `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}`. A soft delete — see below |
 | `getUploadUrl` | `/games/mukhunt/uploadUrl/{imageFileName}` | GET | **JWT (any logged-in user)** | `?contentType=` → `{imageId, uploadUrl, imageUrl}` |
 | `submitPhoto` | `/games/mukhunt/submissions` | POST | JWT | `{clueId, imageId, caption?}` → `{submission, totalPoints}` |
-| `getMySubmissions` | `/games/mukhunt/submissions` | GET | JWT | → `{submissions[], userPoints}` |
+| `revealHint` | `/games/mukhunt/hints` | POST | JWT | `{clueId}` → `{hint:{text,penalty}, alreadyRevealed}`. Records the reveal, which is what makes the penalty stick |
+| `getMySubmissions` | `/games/mukhunt/submissions` | GET | JWT | → `{submissions[], userPoints, hintsUsed}` |
 | `getAllSubmissions` | `/games/mukhunt/submissions/all` | GET | Admins | → `{submissions[]}`, the album source |
 
 ### `getUploadUrl`
