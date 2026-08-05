@@ -103,6 +103,15 @@ export class PSBackendStack extends Stack {
       actions: [ 's3:GetObject' ],
       resources: [ `${staticDataBucket.bucketArn}/images/*` ]
     }));
+    // muk hunt photos are readable straight from the bucket, the same way blog post images are,
+    // so they can be rendered in the game and later embedded in the photo album post.
+    staticDataBucket.addToResourcePolicy(new iam.PolicyStatement({
+      sid: "AllowPublicAccessForMukHuntPath",
+      effect: iam.Effect.ALLOW,
+      principals: [ new iam.AnyPrincipal() ],
+      actions: [ 's3:GetObject' ],
+      resources: [ `${staticDataBucket.bucketArn}/muk-hunt/*` ]
+    }));
 
     // AuthN
     // a cognito userpool for vending JWTs, and associated IAM roles
@@ -291,6 +300,49 @@ export class PSBackendStack extends Stack {
       }
     });
     gameDataTable.grantReadWriteData(deleteMukHuntClueLambda);
+    const getMukHuntUploadUrlLambda = new nodejs.NodejsFunction(this, 'get-muk-hunt-upload-url-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getUploadUrl',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        imageMetadataTableName: imageMetadataTable.tableName,
+        staticDataBucketName: staticDataBucket.bucketName,
+      }
+    });
+    gameDataTable.grantReadData(getMukHuntUploadUrlLambda);
+    imageMetadataTable.grantReadWriteData(getMukHuntUploadUrlLambda);
+    staticDataBucket.grantReadWrite(getMukHuntUploadUrlLambda);
+    const submitMukHuntPhotoLambda = new nodejs.NodejsFunction(this, 'submit-muk-hunt-photo-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'submitPhoto',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        imageMetadataTableName: imageMetadataTable.tableName,
+        staticDataBucketName: staticDataBucket.bucketName,
+      }
+    });
+    gameDataTable.grantReadWriteData(submitMukHuntPhotoLambda);
+    imageMetadataTable.grantReadWriteData(submitMukHuntPhotoLambda);
+    const getMyMukHuntSubmissionsLambda = new nodejs.NodejsFunction(this, 'get-my-muk-hunt-submissions-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getMySubmissions',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getMyMukHuntSubmissionsLambda);
+    const getAllMukHuntSubmissionsLambda = new nodejs.NodejsFunction(this, 'get-all-muk-hunt-submissions-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getAllSubmissions',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getAllMukHuntSubmissionsLambda);
 
     // api domain validations and certificate
     const apiUrl = `${props.domain.toLowerCase()}.${apiHostedZone.zoneName}`
@@ -465,6 +517,30 @@ export class PSBackendStack extends Stack {
       path: '/games/mukhunt/clues/delete',
       methods: [apigateway.HttpMethod.POST],
       integration: new integrations.HttpLambdaIntegration('delete-muk-hunt-clue-integration', deleteMukHuntClueLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/uploadUrl/{imageFileName}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-muk-hunt-upload-url-integration', getMukHuntUploadUrlLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('submit-muk-hunt-photo-integration', submitMukHuntPhotoLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-my-muk-hunt-submissions-integration', getMyMukHuntSubmissionsLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions/all',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-all-muk-hunt-submissions-integration', getAllMukHuntSubmissionsLambda),
       authorizer: authorizer,
     });
 
