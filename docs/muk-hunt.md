@@ -28,6 +28,10 @@ Hunt id is the string `"2027"`, giving `MukHunt-2027` as the game entity — the
 | Clue | `MukHunt-<huntId>` | `Clue-<clueId>` | `title`, `description`, `points` (N), `selfie` (bool), `sortOrder` (N), `resourceType: "Clue"` |
 
 **Clue ids are hand-written slugs**, not uuids — `lighthouse-selfie`, matching `^[a-z0-9]+(-[a-z0-9]+)*$`. The id ends up in the sort key of every submission (`…-Submission-lighthouse-selfie`) and in every `pointHistory` entry, so a readable one makes the table legible when you're checking on things mid-event. The tradeoff is that a clue id is **immutable once players start submitting**: changing it orphans their submission rows. Titles can change freely.
+
+**Clues are soft-deleted.** `deleteClue` sets `deleted: true` and `getHunt` filters those rows out. Submissions point at a clue by id, so keeping the record means they can always resolve back to a title when the album is built, and the id stays claimed rather than being re-adopted by a later clue that happens to reuse the name. Restoring a clue is just a `putClue` with `allowOverwrite` — the put replaces the whole item, so the flag goes away on its own. Actually purging deleted clues is a later cleanup, not something the API does.
+
+Submissions, by contrast, can be hard-deleted whenever that's needed. Nothing references them.
 | Submission | `<cognito sub>` | `MukHunt-<huntId>-Submission-<clueId>` | `clueId`, `imageId`, `imageUrl`, `caption?`, `pointsAwarded` (N), `author`, `submittedDate`, `updatedDate`, `status: "ACCEPTED"`, `resourceType: "MukHuntSubmission"` |
 | UserPoints | `<cognito sub>` | `MukHunt-<huntId>-UserPoints` | `points` (N), `pointHistory[]`, `author`, `resourceType: "MukHuntUserPoints"` |
 
@@ -77,7 +81,7 @@ All routes carry the shared `HttpUserPoolAuthorizer`. The API's CORS config allo
 |---|---|---|---|---|
 | `getHunt` | `/games/mukhunt/hunt` | GET | JWT | → `{hunt, clues[]}` |
 | `putClue` | `/games/mukhunt/clues` | POST | Admins | `{clue:{clueId,title,description,points,selfie,sortOrder}, allowOverwrite?}` → `{clueId}`. Creating is the default and is conditional on the id being free, so a mistyped id 400s instead of clobbering a clue; editing sets `allowOverwrite` |
-| `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}` |
+| `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}`. A soft delete — see below |
 | `getUploadUrl` | `/games/mukhunt/uploadUrl/{imageFileName}` | GET | **JWT (any logged-in user)** | `?contentType=` → `{imageId, uploadUrl, imageUrl}` |
 | `submitPhoto` | `/games/mukhunt/submissions` | POST | JWT | `{clueId, imageId, caption?}` → `{submission, totalPoints}` |
 | `getMySubmissions` | `/games/mukhunt/submissions` | GET | JWT | → `{submissions[], userPoints}` |

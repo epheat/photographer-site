@@ -44,7 +44,7 @@ async function getHuntActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
       return error({ message: `No hunt record found for ${ENTITY_ID}.` });
     }
     const clues = items
-      .filter(item => item.resourceId.startsWith("Clue-"))
+      .filter(item => item.resourceId.startsWith("Clue-") && !item.deleted)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
     return success({
@@ -116,7 +116,8 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
     return success({ message: "Success.", clueId: clueId });
   } catch (err: any) {
     if (err?.name === "ConditionalCheckFailedException") {
-      return error({ message: `A clue with id "${clueId}" already exists. Pass allowOverwrite to edit it.` });
+      // also covers a soft-deleted clue, which still holds its id so that old submissions keep resolving.
+      return error({ message: `A clue with id "${clueId}" already exists, possibly a deleted one. Pass allowOverwrite to edit or restore it.` });
     }
     console.log(err);
     return fault({ message: err });
@@ -127,7 +128,11 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
  * POST /games/mukhunt/clues/delete
  *
  * a POST rather than a DELETE because the API's CORS config only allows OPTIONS/GET/POST.
- * Note this leaves behind any submissions players already made against the clue.
+ *
+ * A soft delete: the row stays and getHunt filters it out. Submissions reference a clue by id,
+ * so keeping the record means they can always resolve back to a title when the album is built,
+ * and the id stays claimed rather than being silently re-adopted by a later clue of the same name.
+ * Restoring one is just a putClue with allowOverwrite, which replaces the item without the flag.
  */
 async function deleteClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
@@ -137,12 +142,22 @@ async function deleteClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer
     return error({ message: "Invalid Request: missing clueId." });
   }
   try {
-    await ddb.delete({
+    await ddb.update({
       TableName: tableName,
       Key: { entityId: ENTITY_ID, resourceId: clueResourceId(request.clueId) },
+      UpdateExpression: "SET deleted = :deleted, lastUpdatedDate = :now",
+      // without this an update on a missing clue would upsert a stub row holding only the flag.
+      ConditionExpression: "attribute_exists(resourceId)",
+      ExpressionAttributeValues: {
+        ':deleted': true,
+        ':now': Date.now(),
+      },
     });
     return success({ message: "Success." });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === "ConditionalCheckFailedException") {
+      return error({ message: `No clue found with id "${request.clueId}".` });
+    }
     console.log(err);
     return fault({ message: err });
   }
