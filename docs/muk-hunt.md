@@ -1,6 +1,6 @@
 # Muk Hunt
 
-A photo scavenger hunt around Mukilteo, WA for the weekend of **July 17, 2027**. Guests get a list of clues, each worth points based on difficulty (selfies preferred), and submit a photo from their phone for each one. Photos are auto-accepted. Afterward the photos get compiled into a photo-album blog post on the site.
+A photo scavenger hunt around Mukilteo, WA, running **Thu Jul 15 through Sun Jul 18, 2027**. Guests get a list of clues, each worth points based on difficulty (selfies preferred), and submit a photo from their phone for each one. Photos are auto-accepted. Afterward the photos get compiled into a photo-album blog post on the site.
 
 This document is the implementation plan. Most of it is assembling patterns that already exist in the repo — the Fantasy Survivor game on `PSGameData`, the presigned-S3-upload pattern with `EHImageMetadata`, Cognito auth, and markdown blog posts. The one genuinely new piece is **an upload path ordinary logged-in users can use**; today's `/images/uploadUrl` is Admins-only and keys everything under `images/`.
 
@@ -44,12 +44,12 @@ Name the submission attribute **`pointsAwarded`, not `points`**. `pointsIndex` h
   "resourceType": "Hunt",
   "title": "Muk Hunt 2027",
   "description": "A photo scavenger hunt around Mukilteo, WA.",
-  "startDate": 1815552000000,
-  "endDate": 1815724799000
+  "startDate": 1815656400000,
+  "endDate": 1815973200000
 }
 ```
 
-The dates above are placeholders standing in for Fri Jul 16 2027 17:00 PT through Sun Jul 18 2027 23:59 PT — compute the real epoch ms when inserting. Widening the window later is just an item edit.
+The window runs Thu Jul 15 2027 06:00 PDT through Sun Jul 18 2027 22:00 PDT. Widening it later is just an item edit — nothing caches these values.
 
 **Points idempotency:** on submit, read UserPoints; if `pointHistory` already contains `event === "Clue-<clueId>"`, don't add points, because this is a replacement. Otherwise add `clue.points` and append history. Same guard `completePrediction` uses in `lib/lambda/survivor.ts` (around line 536).
 

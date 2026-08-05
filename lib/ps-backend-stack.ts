@@ -263,6 +263,17 @@ export class PSBackendStack extends Stack {
     });
     imageMetadataTable.grantReadWriteData(getAllImagesMetadata);
 
+    // muk hunt functions
+    const getMukHuntLambda = new nodejs.NodejsFunction(this, 'get-muk-hunt-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getHunt',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getMukHuntLambda);
+
     // api domain validations and certificate
     const apiUrl = `${props.domain.toLowerCase()}.${apiHostedZone.zoneName}`
     const hostedZone = new route53.HostedZone(this, 'hosted-zone', {
@@ -416,6 +427,14 @@ export class PSBackendStack extends Stack {
       path: '/games/survivor/items/{sub}',
       methods: [apigateway.HttpMethod.POST],
       integration: new integrations.HttpLambdaIntegration('put-item-integration', putItemLambda),
+      authorizer: authorizer,
+    });
+
+    // Muk Hunt API routes
+    httpApi.addRoutes({
+      path: '/games/mukhunt/hunt',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-muk-hunt-integration', getMukHuntLambda),
       authorizer: authorizer,
     });
 
