@@ -273,6 +273,24 @@ export class PSBackendStack extends Stack {
       }
     });
     gameDataTable.grantReadData(getMukHuntLambda);
+    const putMukHuntClueLambda = new nodejs.NodejsFunction(this, 'put-muk-hunt-clue-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'putClue',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(putMukHuntClueLambda);
+    const deleteMukHuntClueLambda = new nodejs.NodejsFunction(this, 'delete-muk-hunt-clue-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'deleteClue',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(deleteMukHuntClueLambda);
 
     // api domain validations and certificate
     const apiUrl = `${props.domain.toLowerCase()}.${apiHostedZone.zoneName}`
@@ -435,6 +453,18 @@ export class PSBackendStack extends Stack {
       path: '/games/mukhunt/hunt',
       methods: [apigateway.HttpMethod.GET],
       integration: new integrations.HttpLambdaIntegration('get-muk-hunt-integration', getMukHuntLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/clues',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('put-muk-hunt-clue-integration', putMukHuntClueLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/clues/delete',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('delete-muk-hunt-clue-integration', deleteMukHuntClueLambda),
       authorizer: authorizer,
     });
 
