@@ -1,6 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import middy from '@middy/core';
@@ -261,6 +261,9 @@ async function getUploadUrlActivity(event: APIGatewayProxyEventV2WithJWTAuthoriz
         author: username,
         authorSub: sub,
         s3Url: s3Url,
+        // kept alongside the url so deleting a submission can remove the object without
+        // having to pick the key back out of the url
+        s3Key: imageKey,
         huntId: HUNT_ID,
         ttl: Math.floor(createdDate / 1000) + UNCLAIMED_IMAGE_TTL_SECONDS,
       },
@@ -425,6 +428,100 @@ async function awardPoints(sub: string, username: string, clueId: string, points
 }
 
 /**
+ * Takes a clue's points back off a player's total and drops the history entry, so the clue can be
+ * scored again if they resubmit later. The inverse of awardPoints, and the same shape survivor's
+ * deletePrediction uses to unwind a scored event.
+ */
+async function revokePoints(sub: string, clueId: string, timestamp: number): Promise<number> {
+  const resourceId = userPointsResourceId();
+  const eventName = clueResourceId(clueId);
+
+  const existing = await ddb.get({
+    TableName: tableName,
+    Key: { entityId: sub, resourceId: resourceId },
+  });
+  const record = existing.Item;
+  if (!record) return 0;
+
+  const entry = record.pointHistory?.find((e: { event: string }) => e.event === eventName);
+  if (!entry) return record.points ?? 0;
+
+  const totalPoints = Math.max(0, (record.points ?? 0) - (entry.pointsAdded ?? 0));
+  await ddb.put({
+    TableName: tableName,
+    Item: {
+      ...record,
+      points: totalPoints,
+      pointHistory: record.pointHistory.filter((e: { event: string }) => e.event !== eventName),
+      lastUpdatedDate: timestamp,
+    },
+  });
+  return totalPoints;
+}
+
+/**
+ * POST /games/mukhunt/submissions/delete
+ *
+ * removes a player's own submission for a clue: the photo itself, its metadata, the submission
+ * record, and the points it earned. A real delete rather than a flag, because someone removing a
+ * photo of themselves should have it actually gone from a publicly readable bucket.
+ */
+async function deleteSubmissionActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: Context): Promise<APIGatewayProxyResultV2> {
+  context.metrics.setProperty("RequestId", context.awsRequestId);
+  const { sub } = getUserInfo(event);
+  if (!event.body) { return error({ message: "Invalid Request: Missing post body." }); }
+  const request = JSON.parse(event.body);
+  if (!request.clueId) {
+    return error({ message: "Invalid Request: missing clueId." });
+  }
+
+  const deletedDate = Date.now();
+  try {
+    // keyed on the caller's own sub, so there's no way to name someone else's submission
+    const existing = await ddb.get({
+      TableName: tableName,
+      Key: { entityId: sub, resourceId: submissionResourceId(request.clueId) },
+    });
+    const submission = existing.Item;
+    if (!submission) {
+      return error({ message: `You don't have a submission for "${request.clueId}".` });
+    }
+
+    const imageResult = await ddb.get({
+      TableName: imageMetadataTableName,
+      Key: { imageId: submission.imageId },
+    });
+    const image = imageResult.Item;
+
+    if (image) {
+      // older rows predate s3Key, so fall back to the path from the url
+      const s3Key = image.s3Key ?? decodeURIComponent(new URL(image.s3Url).pathname).replace(/^\//, "");
+      try {
+        await s3Client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: s3Key }));
+      } catch (err) {
+        // the record is what the game reads, so a stuck object shouldn't block the delete
+        console.log(`Failed to delete ${s3Key} from S3, continuing.`, err);
+      }
+      await ddb.delete({
+        TableName: imageMetadataTableName,
+        Key: { imageId: submission.imageId },
+      });
+    }
+
+    await ddb.delete({
+      TableName: tableName,
+      Key: { entityId: sub, resourceId: submissionResourceId(request.clueId) },
+    });
+    const totalPoints = await revokePoints(sub, request.clueId, deletedDate);
+
+    return success({ message: "Success.", totalPoints: totalPoints });
+  } catch (err) {
+    console.log(err);
+    return fault({ message: err });
+  }
+}
+
+/**
  * GET /games/mukhunt/submissions
  *
  * a player's own submissions and running point total. Players only ever see their own.
@@ -511,6 +608,9 @@ export const getUploadUrl = middy(getUploadUrlActivity)
 
 export const submitPhoto = middy(submitPhotoActivity)
   .use(cloudwatchMetrics(getMetricsOptions("SubmitPhoto")));
+
+export const deleteSubmission = middy(deleteSubmissionActivity)
+  .use(cloudwatchMetrics(getMetricsOptions("DeleteSubmission")));
 
 export const getMySubmissions = middy(getMySubmissionsActivity)
   .use(cloudwatchMetrics(getMetricsOptions("GetMySubmissions")));

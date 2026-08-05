@@ -23,3 +23,10 @@ pnpm-debug.log*
 
 # cdk
 cdk.out
+# tsc output, emitted alongside the sources
+lib/**/*.js
+lib/**/*.d.ts
+bin/**/*.js
+bin/**/*.d.ts
+test/**/*.js
+test/**/*.d.ts

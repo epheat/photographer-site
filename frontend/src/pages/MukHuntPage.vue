@@ -24,6 +24,7 @@
       :existingSubmission="selectedClue ? submissionByClueId[selectedClue.clueId] : null"
       @close="closeSubmitModal"
       @submitted="onSubmitted"
+      @deleted="onDeleted"
     />
 
     <Modal :show="showDeleteModal" @close="closeDeleteModal">
@@ -185,6 +186,7 @@
 </template>
 
 <script>
+import { defineComponent } from "vue";
 import { API, Auth } from "aws-amplify";
 import { authStore } from "@/auth/store";
 import Button from "@/components/Button.vue";
@@ -206,7 +208,10 @@ const emptyClueForm = () => ({
   selfie: false,
 });
 
-export default {
+// defineComponent rather than a bare options object: the routes array is typed as
+// RouteRecordRaw[], and a bare object with this data shape doesn't infer as a valid route
+// component, which surfaces as a type error pointing at router.ts rather than at this file.
+export default defineComponent({
   name: "MukHuntPage",
   data() {
     return {
@@ -339,6 +344,11 @@ export default {
       this.successMessage = `Nice one! ${response.totalPoints} points so far.`;
       this.getMySubmissions();
     },
+    onDeleted(response) {
+      this.closeSubmitModal();
+      this.successMessage = `Photo deleted. ${response.totalPoints} points remaining.`;
+      this.getMySubmissions();
+    },
     editClue(clue) {
       this.resetMessages();
       this.clueForm = {
@@ -443,7 +453,7 @@ export default {
     ClueCard,
     SubmitPhotoModal,
   }
-}
+})
 </script>
 
 <style lang="scss" scoped>

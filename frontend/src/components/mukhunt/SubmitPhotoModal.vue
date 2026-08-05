@@ -1,17 +1,19 @@
 <template>
   <Modal :show="show" @close="onClose">
     <template #header>
-      <h2>{{ existingSubmission ? "Replace your photo" : clue?.title }}</h2>
-      <p v-if="!existingSubmission">{{ clue?.description }}</p>
-      <p v-else class="replace-note">Swapping in a new photo for "{{ clue?.title }}". Your {{ existingSubmission.pointsAwarded }} points stay put.</p>
+      <!-- lives in the header slot, positioned against the modal container -->
+      <span class="close-x" :class="{ disabled: busy }" @click="onClose" role="button" aria-label="Close">&times;</span>
+      <h2>{{ clue?.title }}</h2>
+      <p>{{ clue?.description }}</p>
     </template>
 
     <div class="submit-body">
-      <div class="preview" v-if="previewUrl">
-        <img :src="previewUrl" alt="your photo" />
+      <div class="preview" v-if="displayedImage">
+        <div class="preview-label">{{ previewUrl ? "New photo" : "Your photo" }}</div>
+        <img :src="displayedImage" alt="your photo" />
       </div>
 
-      <label class="photo-picker" :class="{ compact: !!previewUrl }">
+      <label class="photo-picker" :class="{ compact: !!displayedImage }">
         <!-- capture opens the camera straight away on a phone; front-facing when the clue wants a selfie -->
         <input
           type="file"
@@ -20,7 +22,8 @@
           :disabled="busy"
           @change="onFileChange"
         />
-        <span v-if="!previewUrl">{{ clue?.selfie ? "Take a selfie" : "Take a photo" }}</span>
+        <span v-if="!displayedImage">{{ clue?.selfie ? "Take a selfie" : "Take a photo" }}</span>
+        <span v-else-if="existingSubmission && !previewUrl">Replace this photo</span>
         <span v-else>Choose a different photo</span>
       </label>
 
@@ -42,11 +45,23 @@
       </div>
       <div class="status-note" v-else-if="status === 'preparing'">Getting things ready&hellip;</div>
       <div class="status-note" v-else-if="status === 'submitting'">Saving your submission&hellip;</div>
+      <div class="status-note" v-else-if="status === 'deleting'">Deleting&hellip;</div>
       <div class="status-error" v-if="errorMessage">{{ errorMessage }}</div>
+
+      <!-- a nested Modal would stack a second mask and swallow the backdrop click, so the
+           confirmation is a second tap on the button itself -->
+      <div class="delete-warning" v-if="confirmingDelete">
+        This removes the photo for good, and takes back the {{ existingSubmission?.pointsAwarded }} points it earned.
+      </div>
     </div>
 
     <template #actions>
-      <Button submit v-if="!busy" @press="submit">{{ existingSubmission ? "Replace photo" : "Submit photo" }}</Button>
+      <Button cancel v-if="existingSubmission && !busy" @press="onDeletePress">
+        {{ confirmingDelete ? "Really delete?" : "Delete" }}
+      </Button>
+      <Button submit v-if="!busy" :class="{ inert: !hasChanges }" @press="submit">
+        {{ existingSubmission ? "Confirm changes" : "Submit photo" }}
+      </Button>
     </template>
   </Modal>
 </template>
@@ -122,9 +137,10 @@ export default {
       file: null,
       previewUrl: "",
       caption: "",
-      status: "idle", // idle | preparing | uploading | submitting
+      status: "idle", // idle | preparing | uploading | submitting | deleting
       uploadPercent: 0,
       errorMessage: "",
+      confirmingDelete: false,
       maxCaption: MAX_CAPTION_LENGTH,
     }
   },
@@ -132,16 +148,33 @@ export default {
     busy() {
       return this.status !== "idle";
     },
+    // a freshly picked file wins; otherwise fall back to whatever they submitted before
+    displayedImage() {
+      return this.previewUrl || this.existingSubmission?.imageUrl || "";
+    },
+    // a new submission needs a photo; an edit needs either a new photo or a changed caption,
+    // so confirming can't be pressed until there's actually something to confirm
+    hasChanges() {
+      if (!this.existingSubmission) return !!this.file;
+      const originalCaption = (this.existingSubmission.caption ?? "").trim();
+      return !!this.file || this.caption.trim() !== originalCaption;
+    },
   },
   watch: {
-    // the parent keeps one modal instance around, so each open starts from a clean slate
-    show(isOpen) {
-      if (isOpen) {
-        this.reset();
-        this.caption = this.existingSubmission?.caption ?? "";
-      } else {
-        this.releasePreview();
-      }
+    // the parent keeps one modal instance around, so each open starts from a clean slate.
+    // flush: post so the clue and submission props have settled before the caption is read from
+    // them - otherwise opening on an existing submission starts with an empty caption box, which
+    // then counts as an edit and enables the confirm button with nothing actually changed.
+    show: {
+      flush: 'post',
+      handler(isOpen) {
+        if (isOpen) {
+          this.reset();
+          this.caption = this.existingSubmission?.caption ?? "";
+        } else {
+          this.releasePreview();
+        }
+      },
     },
   },
   unmounted() {
@@ -155,6 +188,7 @@ export default {
       this.status = "idle";
       this.uploadPercent = 0;
       this.errorMessage = "";
+      this.confirmingDelete = false;
     },
     releasePreview() {
       if (this.previewUrl) {
@@ -171,39 +205,80 @@ export default {
       const file = e.target.files?.[0];
       if (!file) return;
       this.errorMessage = "";
+      // picking a photo is a clear signal they're not deleting after all
+      this.confirmingDelete = false;
       this.releasePreview();
       this.file = file;
       this.previewUrl = URL.createObjectURL(file);
     },
+    // first press arms it, second one actually deletes
+    onDeletePress() {
+      if (!this.confirmingDelete) {
+        this.confirmingDelete = true;
+        // the warning pushes the action row down, and with a tall photo above it that can put
+        // the confirm button off-screen - follow it down so it stays under their thumb
+        this.$nextTick(() => {
+          const container = this.$el?.querySelector?.('.modal-container');
+          if (container) container.scrollTop = container.scrollHeight;
+        });
+        return;
+      }
+      this.deleteSubmission();
+    },
+    async deleteSubmission() {
+      this.errorMessage = "";
+      try {
+        this.status = "deleting";
+        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        const response = await API.post('ps-api', '/games/mukhunt/submissions/delete', {
+          body: { clueId: this.clue.clueId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        this.status = "idle";
+        this.confirmingDelete = false;
+        this.$emit('deleted', response);
+      } catch (err) {
+        this.status = "idle";
+        this.errorMessage = err.response?.data?.message ?? err.message;
+      }
+    },
     async submit() {
-      if (!this.file) {
+      if (!this.hasChanges) return;
+      if (!this.file && !this.existingSubmission) {
         this.errorMessage = "Pick a photo first.";
         return;
       }
       this.errorMessage = "";
       try {
-        this.status = "preparing";
-        const { blob, contentType, fileName } = await normalizeImage(this.file);
-
         const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        // encoded because phone filenames carry spaces and parens that would break the path
-        const urlResponse = await API.get(
-          'ps-api',
-          `/games/mukhunt/uploadUrl/${encodeURIComponent(fileName)}?contentType=${encodeURIComponent(contentType)}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
 
-        this.status = "uploading";
-        this.uploadPercent = 0;
-        await uploadWithProgress(urlResponse.uploadUrl, blob, contentType, (pct) => {
-          this.uploadPercent = pct;
-        });
+        // a caption-only edit reuses the photo that's already up there, so it skips
+        // straight to the submission call
+        let imageId = this.existingSubmission?.imageId;
+        if (this.file) {
+          this.status = "preparing";
+          const { blob, contentType, fileName } = await normalizeImage(this.file);
+
+          // encoded because phone filenames carry spaces and parens that would break the path
+          const urlResponse = await API.get(
+            'ps-api',
+            `/games/mukhunt/uploadUrl/${encodeURIComponent(fileName)}?contentType=${encodeURIComponent(contentType)}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          this.status = "uploading";
+          this.uploadPercent = 0;
+          await uploadWithProgress(urlResponse.uploadUrl, blob, contentType, (pct) => {
+            this.uploadPercent = pct;
+          });
+          imageId = urlResponse.imageId;
+        }
 
         this.status = "submitting";
         const submitResponse = await API.post('ps-api', '/games/mukhunt/submissions', {
           body: {
             clueId: this.clue.clueId,
-            imageId: urlResponse.imageId,
+            imageId: imageId,
             caption: this.caption,
           },
           headers: { Authorization: `Bearer ${token}` },
@@ -227,8 +302,44 @@ export default {
 <style lang="scss" scoped>
 @import "../../scss/mukhunt.scss";
 
-.replace-note {
-  color: $mh-muted;
+.delete-warning {
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 2px solid $mh-pop;
+  border-radius: $mh-radius;
+  color: $mh-pop;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+// anchor for the close X, which sits against the container rather than the header text
+:deep(.modal-container) {
+  position: relative;
+}
+
+.close-x {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: $mh-ink;
+  cursor: pointer;
+
+  &.disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+}
+
+// the header text shouldn't run under the X
+:deep(.modal-header) h2 {
+  padding-right: 36px;
 }
 
 // A portrait photo preview plus the caption field can outgrow a phone screen, and the shared modal
@@ -254,15 +365,35 @@ export default {
     box-shadow: 0 0 0 $mh-ink;
     transform: translate(2px, 2px);
   }
+
+  // Button.vue has no disabled state, so nothing-to-confirm is expressed here.
+  // pointer-events blocks the press outright; submit() also guards on hasChanges.
+  &.inert {
+    opacity: 0.4;
+    pointer-events: none;
+  }
 }
 
 .submit-body {
   .preview {
+    position: relative;
     margin-bottom: 12px;
     border: 2px solid $mh-ink;
     border-radius: $mh-radius;
     overflow: hidden;
     background-color: $mh-ink;
+
+    .preview-label {
+      @include mh-label;
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      background-color: $mh-ink;
+      color: $mh-accent;
+      font-size: 0.6rem;
+    }
 
     img {
       display: block;
@@ -294,11 +425,13 @@ export default {
       pointer-events: none;
     }
 
+    // once a photo is showing this drops to a secondary action, but it still has to read as a
+    // button - white would disappear into the modal, so it sits a shade below it
     &.compact {
       min-height: 44px;
-      font-weight: 400;
+      font-weight: 700;
       font-size: 0.9rem;
-      background-color: white;
+      background-color: #e5e1d5;
     }
   }
 

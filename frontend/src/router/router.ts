@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
 import Home from "@/pages/Home.vue";
 import PostsPage from "@/pages/PostsPage.vue";
 import PostPage from "@/pages/PostPage.vue";
@@ -13,7 +13,10 @@ import RecipeListPage from "@/pages/recipes/RecipeListPage.vue";
 import RecipePage from "@/pages/recipes/RecipePage.vue";
 import RecipeEditorPage from "@/pages/recipes/RecipeEditorPage.vue";
 
-const routes = [
+// annotated rather than inferred: without this, TS tries to unify the option types of every page
+// component into one union, and adding or changing a component's shape can make the whole array
+// stop being assignable to RouteRecordRaw[] for reasons that point at unrelated pages.
+const routes: RouteRecordRaw[] = [
   { path: '/', component: Home },
   { path: '/posts', component: PostsPage },
   { path: '/posts/new', component: EditorPage },
