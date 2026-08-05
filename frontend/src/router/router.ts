@@ -8,6 +8,7 @@ import EditorPage from "@/pages/EditorPage.vue";
 import GamesPage from "@/pages/GamesPage.vue";
 import SurvivorGamePage from "@/pages/SurvivorGamePage.vue";
 import BattleTDPage from "@/pages/BattleTDPage.vue";
+import MukHuntPage from "@/pages/MukHuntPage.vue";
 import RecipeListPage from "@/pages/recipes/RecipeListPage.vue";
 import RecipePage from "@/pages/recipes/RecipePage.vue";
 import RecipeEditorPage from "@/pages/recipes/RecipeEditorPage.vue";
@@ -24,6 +25,7 @@ const routes = [
   { path: '/games', component: GamesPage },
   { path: '/games/FantasySurvivor', component: SurvivorGamePage },
   { path: '/games/BattleTD', component: BattleTDPage },
+  { path: '/games/MukHunt', component: MukHuntPage },
   { path: '/music', component: MusicPage },
   { path: '/auth/:flowRoute', component: AuthPage, props: true },
 ]

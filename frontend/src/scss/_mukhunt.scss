@@ -1,0 +1,78 @@
+// Shared look for the Muk Hunt pages.
+//
+// Built on the site palette rather than beside it, but leaning harder into the retro cues that were
+// already there: flat offset shadows instead of blurred ones, solid ink borders, and uppercase
+// tracked-out micro labels. Everything here is sized for a phone first, since that's what the whole
+// game gets played on.
+
+@import "./colors.scss";
+
+$mh-ink: $ps-navy;
+$mh-paper: #f6f2e9;
+$mh-accent: $ps-daisy;
+$mh-blue: $ps-jeans;
+$mh-pop: #c8452f;
+$mh-muted: #6f6c7d;
+$mh-rule: #cfc9ba;
+
+$mh-radius: 6px;
+// the site's only breakpoints are max-width; these pages go the other way, so they need their own.
+$mh-wide: 601px;
+
+$mh-mono: "SF Mono", "Menlo", "Consolas", monospace;
+
+// flat drop shadow, no blur - the thing that reads as retro without looking like a bevel
+@mixin mh-panel($bg: $mh-paper, $offset: 3px) {
+  background-color: $bg;
+  border: 2px solid $mh-ink;
+  border-radius: $mh-radius;
+  box-shadow: $offset $offset 0 $mh-ink;
+}
+
+// pairs with mh-panel: the surface sinks onto its own shadow when pressed, matching Button.vue
+@mixin mh-pressable($offset: 3px) {
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+
+  &:active {
+    box-shadow: 0 0 0 $mh-ink;
+    transform: translate($offset, $offset);
+  }
+}
+
+@mixin mh-label {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: $mh-muted;
+}
+
+// phone keyboards zoom the viewport when a focused input is under 16px, which shifts the layout
+// mid-typing. Every text input in these pages holds at 16px because of that.
+@mixin mh-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: 16px;
+  padding: 10px;
+  border: 2px solid $mh-ink;
+  border-radius: $mh-radius;
+  background-color: white;
+
+  &:focus {
+    outline: none;
+    border-color: $mh-blue;
+    box-shadow: 0 0 0 3px rgba(97, 115, 155, 0.25);
+  }
+
+  &:disabled {
+    background-color: #eceadf;
+    color: $mh-muted;
+  }
+}
+
+// comfortable thumb target - anything tappable should clear this
+@mixin mh-tappable {
+  min-height: 44px;
+}
