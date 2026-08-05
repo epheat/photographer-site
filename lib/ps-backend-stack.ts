@@ -75,6 +75,10 @@ export class PSBackendStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'imageId', type: dynamodb.AttributeType.STRING },
       pointInTimeRecovery: true,
+      // the upload handlers have always written a ttl, but it was never enabled, so abandoned
+      // pre-upload records never expired. Claiming an image deletes the attribute, so only
+      // records for uploads that were never submitted are ever reaped.
+      timeToLiveAttribute: 'ttl',
     });
     // TODO: GSIs for image metadata
 
