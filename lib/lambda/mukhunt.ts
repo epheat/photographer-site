@@ -505,3 +505,16 @@ export const putClue = middy(putClueActivity)
 export const deleteClue = middy(deleteClueActivity)
   .use(requireGroup("Admins"))
   .use(cloudwatchMetrics(getMetricsOptions("DeleteClue")));
+
+export const getUploadUrl = middy(getUploadUrlActivity)
+  .use(cloudwatchMetrics(getMetricsOptions("GetUploadUrl")));
+
+export const submitPhoto = middy(submitPhotoActivity)
+  .use(cloudwatchMetrics(getMetricsOptions("SubmitPhoto")));
+
+export const getMySubmissions = middy(getMySubmissionsActivity)
+  .use(cloudwatchMetrics(getMetricsOptions("GetMySubmissions")));
+
+export const getAllSubmissions = middy(getAllSubmissionsActivity)
+  .use(requireGroup("Admins"))
+  .use(cloudwatchMetrics(getMetricsOptions("GetAllSubmissions")));

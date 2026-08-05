@@ -108,7 +108,7 @@ async function putImageMetadataActivity(event: APIGatewayProxyEventV2, context: 
 /**
  * GET images
  */
-async function getAllImages(event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> {
+async function getAllImagesActivity(event: APIGatewayProxyEventV2, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
   try {
     const getResult = await ddb.scan({
@@ -142,3 +142,11 @@ export const getUploadUrl = middy(getUploadUrlActivity)
 export const putImageMetadata = middy(putImageMetadataActivity)
   .use(requireGroup("Admins"))
   .use(cloudwatchMetrics(getMetricsOptions("PutImageMetadata")));
+
+// GET /images/metadata has been wired to this handler all along, but it was never exported, so the
+// route has only ever returned Runtime.HandlerNotFound. Nothing calls it, which is why that went
+// unnoticed. Wrapped like the others: it needs the metrics middleware for its own setProperty call,
+// and it lists every image in the table, so it's admin-only.
+export const getAllImages = middy(getAllImagesActivity)
+  .use(requireGroup("Admins"))
+  .use(cloudwatchMetrics(getMetricsOptions("GetAllImages")));
