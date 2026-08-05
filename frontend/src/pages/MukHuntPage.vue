@@ -7,7 +7,8 @@
 
     <div class="tabs">
       <div class="tab" :class="{active: currentTab === 0}" @click="setTab(0)">Hunt</div>
-      <div class="tab" v-if="shouldShowAdminPage" :class="{active: currentTab === 1}" @click="setTab(1)">Admin</div>
+      <div class="tab" :class="{active: currentTab === 1}" @click="setTab(1)">My Photos</div>
+      <div class="tab" v-if="shouldShowAdminPage" :class="{active: currentTab === 2}" @click="setTab(2)">Admin</div>
     </div>
 
     <div class="banner login" v-if="!loggedIn">
@@ -16,6 +17,14 @@
     <div class="banner error" v-if="errorMessage">{{ errorMessage }}</div>
     <div class="banner success" v-if="successMessage">{{ successMessage }}</div>
     <div class="loading" v-if="loading"><Spinner /></div>
+
+    <SubmitPhotoModal
+      :show="showSubmitModal"
+      :clue="selectedClue"
+      :existingSubmission="selectedClue ? submissionByClueId[selectedClue.clueId] : null"
+      @close="closeSubmitModal"
+      @submitted="onSubmitted"
+    />
 
     <Modal :show="showDeleteModal" @close="closeDeleteModal">
       <template #header>
@@ -48,24 +57,65 @@
 
         <div class="stats" v-if="clues.length">
           <div class="stat">
-            <div class="stat-value">{{ clues.length }}</div>
-            <div class="stat-label">Clues</div>
+            <div class="stat-value">{{ completedCount }}/{{ clues.length }}</div>
+            <div class="stat-label">Found</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">{{ myPoints }}</div>
+            <div class="stat-label">Points</div>
           </div>
           <div class="stat">
             <div class="stat-value">{{ totalPoints }}</div>
-            <div class="stat-label">Points</div>
+            <div class="stat-label">Possible</div>
           </div>
         </div>
 
         <template v-if="clues.length">
-          <ClueCard v-for="clue in clues" :key="clue.clueId" :clue="clue" />
+          <ClueCard
+            v-for="clue in clues"
+            :key="clue.clueId"
+            :clue="clue"
+            :submission="submissionByClueId[clue.clueId]"
+            @press="openSubmitModal(clue)"
+          />
         </template>
         <div class="empty" v-else-if="!loading">No clues have been posted yet. Check back closer to the hunt.</div>
       </template>
       <div class="empty" v-else-if="!loading && loggedIn">Couldn't load the hunt.</div>
     </div>
 
-    <div class="tab-content" v-if="currentTab === 1 && shouldShowAdminPage">
+    <div class="tab-content" v-if="currentTab === 1">
+      <template v-if="submissions.length">
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value">{{ submissions.length }}</div>
+            <div class="stat-label">Photos</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">{{ myPoints }}</div>
+            <div class="stat-label">Points</div>
+          </div>
+        </div>
+        <div class="photo-grid">
+          <div class="photo-card" v-for="submission in mySubmissionsInClueOrder" :key="submission.clueId">
+            <img :src="submission.imageUrl" :alt="clueTitle(submission.clueId)" />
+            <div class="photo-body">
+              <div class="photo-title">{{ clueTitle(submission.clueId) }}</div>
+              <p class="photo-caption" v-if="submission.caption">&ldquo;{{ submission.caption }}&rdquo;</p>
+              <div class="photo-footer">
+                <span class="photo-points">{{ submission.pointsAwarded }} pts</span>
+                <Button info @press="openSubmitModalForSubmission(submission)">Replace</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+      <div class="empty" v-else-if="!loading">
+        No photos yet. Head to the Hunt tab and pick a clue to get started.
+      </div>
+    </div>
+
+    <div class="tab-content" v-if="currentTab === 2 && shouldShowAdminPage">
       <div class="section-heading">
         <h2>Clues</h2>
         <Button info @press="getHunt">Refresh</Button>
@@ -142,6 +192,7 @@ import Modal from "@/components/Modal.vue";
 import Footer from "@/components/Footer.vue";
 import Spinner from "@/components/Spinner.vue";
 import ClueCard from "@/components/mukhunt/ClueCard.vue";
+import SubmitPhotoModal from "@/components/mukhunt/SubmitPhotoModal.vue";
 
 // mirrors the server-side check in lib/lambda/mukhunt.ts, so a bad id is caught before the round trip.
 const CLUE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -166,6 +217,10 @@ export default {
       loggedIn: authStore.state.loggedIn,
       hunt: null,
       clues: [],
+      submissions: [],
+      userPoints: { points: 0, pointHistory: [] },
+      showSubmitModal: false,
+      selectedClue: null,
 
       // admin only
       shouldShowAdminPage: authStore.state.isAdmin,
@@ -178,6 +233,23 @@ export default {
   computed: {
     totalPoints() {
       return this.clues.reduce((sum, clue) => sum + (clue.points ?? 0), 0);
+    },
+    submissionByClueId() {
+      return this.submissions.reduce((map, submission) => {
+        map[submission.clueId] = submission;
+        return map;
+      }, {});
+    },
+    myPoints() {
+      return this.userPoints?.points ?? 0;
+    },
+    // only counts clues that still exist, so a soft-deleted one doesn't inflate the total
+    completedCount() {
+      return this.clues.filter(clue => this.submissionByClueId[clue.clueId]).length;
+    },
+    mySubmissionsInClueOrder() {
+      const order = this.clues.map(clue => clue.clueId);
+      return [...this.submissions].sort((a, b) => order.indexOf(a.clueId) - order.indexOf(b.clueId));
     },
     huntState() {
       if (!this.hunt) return "";
@@ -192,6 +264,7 @@ export default {
   mounted() {
     if (this.loggedIn) {
       this.getHunt();
+      this.getMySubmissions();
     }
   },
   methods: {
@@ -229,6 +302,42 @@ export default {
     // amplify wraps a non-2xx into an axios-style error, where the handler's own message is nested.
     readError(err) {
       return err.response?.data?.message ?? err.message;
+    },
+    async getMySubmissions() {
+      try {
+        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let response = await API.get('ps-api', '/games/mukhunt/submissions', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          }
+        });
+        this.submissions = response.submissions ?? [];
+        this.userPoints = response.userPoints ?? { points: 0, pointHistory: [] };
+      } catch (err) {
+        this.errorMessage = this.readError(err);
+      }
+    },
+    clueTitle(clueId) {
+      // a submission can outlive its clue, since deleting one only flags it
+      return this.clues.find(clue => clue.clueId === clueId)?.title ?? clueId;
+    },
+    openSubmitModal(clue) {
+      this.resetMessages();
+      this.selectedClue = clue;
+      this.showSubmitModal = true;
+    },
+    openSubmitModalForSubmission(submission) {
+      const clue = this.clues.find(c => c.clueId === submission.clueId);
+      if (clue) this.openSubmitModal(clue);
+    },
+    closeSubmitModal() {
+      this.showSubmitModal = false;
+      this.selectedClue = null;
+    },
+    onSubmitted(response) {
+      this.closeSubmitModal();
+      this.successMessage = `Nice one! ${response.totalPoints} points so far.`;
+      this.getMySubmissions();
     },
     editClue(clue) {
       this.resetMessages();
@@ -332,6 +441,7 @@ export default {
     Footer,
     Spinner,
     ClueCard,
+    SubmitPhotoModal,
   }
 }
 </script>
@@ -499,6 +609,53 @@ export default {
       @include mh-label;
       color: $mh-paper;
       margin-top: 4px;
+    }
+  }
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+
+  // one per row on a phone so the photo stays big enough to actually look at
+  @media screen and (min-width: $mh-wide) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .photo-card {
+    @include mh-panel($bg: white);
+    overflow: hidden;
+
+    img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-bottom: 2px solid $mh-ink;
+    }
+    .photo-body {
+      padding: 10px 12px 12px;
+    }
+    .photo-title {
+      font-weight: 700;
+    }
+    .photo-caption {
+      margin: 4px 0 0;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      color: $mh-muted;
+    }
+    .photo-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .photo-points {
+      @include mh-label;
+      color: $mh-ink;
     }
   }
 }

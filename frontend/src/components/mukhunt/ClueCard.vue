@@ -1,5 +1,5 @@
 <template>
-  <div class="clue-card" @click="this.$emit('press')">
+  <div class="clue-card" :class="{ done: !!submission }" @click="this.$emit('press')">
     <div class="points-chip">
       <span class="value">{{ clue.points }}</span>
       <span class="unit">pts</span>
@@ -7,7 +7,11 @@
     <div class="clue-body">
       <div class="clue-title">{{ clue.title }}</div>
       <p class="clue-description">{{ clue.description }}</p>
-      <span class="selfie-tag" v-if="clue.selfie">&#9737; Selfie</span>
+      <span class="selfie-tag" v-if="clue.selfie && !submission">&#9737; Selfie</span>
+      <span class="done-tag" v-if="submission">&#10003; Got it</span>
+    </div>
+    <div class="thumb" v-if="submission">
+      <img :src="submission.imageUrl" :alt="clue.title" />
     </div>
   </div>
 </template>
@@ -17,6 +21,8 @@ export default {
   name: "ClueCard",
   props: {
     clue: Object,
+    // the player's own submission for this clue, when they've already got it
+    submission: Object,
   },
 }
 </script>
@@ -76,7 +82,7 @@ export default {
       line-height: 1.4;
       color: $mh-muted;
     }
-    .selfie-tag {
+    .selfie-tag, .done-tag {
       @include mh-label;
       display: inline-block;
       margin-top: 8px;
@@ -85,6 +91,40 @@ export default {
       background-color: $mh-accent;
       color: $mh-ink;
       font-size: 0.65rem;
+    }
+    .done-tag {
+      background-color: $ps-green;
+      color: white;
+    }
+  }
+
+  .thumb {
+    flex-shrink: 0;
+    width: 62px;
+    height: 62px;
+    border: 2px solid $mh-ink;
+    border-radius: $mh-radius - 2px;
+    overflow: hidden;
+    background-color: $mh-ink;
+    align-self: center;
+
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  // a completed clue reads as settled rather than as another thing to go do
+  &.done {
+    background-color: white;
+    border-color: $ps-green;
+    box-shadow: 3px 3px 0 $ps-green;
+
+    .points-chip {
+      background-color: $ps-green;
+      .value, .unit { color: white; }
     }
   }
 
