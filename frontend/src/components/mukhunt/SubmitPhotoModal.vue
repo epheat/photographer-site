@@ -349,22 +349,11 @@ export default {
   overflow-y: auto;
 }
 
-// match the buttons on the rest of the page, including Modal's own Close button
-:deep(.ps-button) {
-  @include mh-tappable;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid $mh-ink;
-  border-radius: $mh-radius;
-  box-shadow: 2px 2px 0 $mh-ink;
-  padding: 0 16px;
-  font-weight: 700;
-
-  &:hover:active {
-    box-shadow: 0 0 0 $mh-ink;
-    transform: translate(2px, 2px);
-  }
+// Matches the buttons on the rest of the page, including Modal's own Close button. Qualified by
+// .modal-actions so it outranks Button.vue's per-variant shadow rules.
+:deep(.modal-actions .ps-button) {
+  @include mh-button;
+  @include mh-button-variants;
 
   // Button.vue has no disabled state, so nothing-to-confirm is expressed here.
   // pointer-events blocks the press outright; submit() also guards on hasChanges.

@@ -786,22 +786,10 @@ h2 {
   }
 }
 
-// Button.vue is compact and borderless by default. These are primary phone targets, so they get real
-// height, and the ink border/flat shadow that everything else on the page carries.
-.ps-button {
-  @include mh-tappable;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid $mh-ink;
-  border-radius: $mh-radius;
-  box-shadow: 2px 2px 0 $mh-ink;
-  padding: 0 16px;
-  font-weight: 700;
-
-  &:hover:active {
-    box-shadow: 0 0 0 $mh-ink;
-    transform: translate(2px, 2px);
-  }
+// Qualified by the page class so it outranks Button.vue's per-variant shadow rules; a bare
+// .ps-button selector loses to them and the coloured buttons keep a mismatched shadow.
+.mukhunt-page .ps-button {
+  @include mh-button;
+  @include mh-button-variants;
 }
 </style>

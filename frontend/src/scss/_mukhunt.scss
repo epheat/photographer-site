@@ -76,3 +76,39 @@ $mh-mono: "SF Mono", "Menlo", "Consolas", monospace;
 @mixin mh-tappable {
   min-height: 44px;
 }
+
+// Button.vue is compact and borderless, and sets its own straight-down box-shadow. These pages give
+// it real height and the same ink border and offset shadow everything else here carries.
+//
+// Note for callers: Button.vue styles its shadow per variant (.submit/.cancel/.info), which outranks
+// a bare `.ps-button` rule. Apply this with a selector specific enough to win - see mh-button-variants.
+@mixin mh-button {
+  @include mh-tappable;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid $mh-ink;
+  border-radius: $mh-radius;
+  box-shadow: 2px 2px 0 $mh-ink;
+  padding: 0 16px;
+  font-weight: 700;
+
+  &:hover:active {
+    box-shadow: 0 0 0 $mh-ink;
+    transform: translate(2px, 2px);
+  }
+}
+
+// Names the variants explicitly so they don't keep Button.vue's own shadow. Without this, a coloured
+// button's shadow sits straight below it while a plain one is offset to the right, and the row of
+// them looks subtly mismatched.
+@mixin mh-button-variants {
+  &.submit, &.cancel, &.info {
+    box-shadow: 2px 2px 0 $mh-ink;
+
+    &:hover:active {
+      box-shadow: 0 0 0 $mh-ink;
+      transform: translate(2px, 2px);
+    }
+  }
+}
