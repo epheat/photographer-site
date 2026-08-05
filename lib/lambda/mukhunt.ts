@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
 import middy from '@middy/core';
-import { v4 as uuidv4 } from "uuid";
 import cloudwatchMetrics, { Context } from '@middy/cloudwatch-metrics';
 import { requireGroup } from './middleware';
 import { error, fault, success } from "./responses";
@@ -16,6 +15,11 @@ const ddbClient = new DynamoDBClient({ region: "us-east-1" });
 const ddb = DynamoDBDocument.from(ddbClient);
 
 const clueResourceId = (clueId: string) => `Clue-${clueId}`;
+
+// Clue ids are hand-written slugs rather than uuids, because they show up in the sort key of every
+// submission and in every point history entry, where "lighthouse-selfie" beats a uuid when reading
+// rows by hand. They're part of those keys, so a clue id is immutable once players start submitting.
+const CLUE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * GET /games/mukhunt/hunt
@@ -63,8 +67,11 @@ async function getHuntActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
 /**
  * POST /games/mukhunt/clues
  *
- * creates a clue when clueId is absent, and overwrites the existing one when it's present.
- * A plain put either way, so editing a clue replaces every field rather than patching.
+ * creates or replaces a clue. A plain put, so an edit replaces every field rather than patching.
+ *
+ * Creating is the default and refuses to clobber an existing clue, so a mistyped clue id fails
+ * loudly instead of silently overwriting a clue that may already have submissions against it.
+ * Editing an existing clue requires allowOverwrite, which the admin edit form sets.
  */
 async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, context: Context): Promise<APIGatewayProxyResultV2> {
   context.metrics.setProperty("RequestId", context.awsRequestId);
@@ -72,7 +79,13 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
   const request = JSON.parse(event.body);
   const clue = request.clue;
 
-  if (!clue?.title || !clue?.description) {
+  if (!clue?.clueId) {
+    return error({ message: "Invalid Request: clue requires a clueId, e.g. \"lighthouse-selfie\"." });
+  }
+  if (!CLUE_ID_PATTERN.test(clue.clueId)) {
+    return error({ message: "Invalid Request: clueId must be lowercase letters, numbers, and single hyphens, e.g. \"lighthouse-selfie\"." });
+  }
+  if (!clue.title || !clue.description) {
     return error({ message: "Invalid Request: clue requires a title and a description." });
   }
   if (typeof clue.points !== "number" || clue.points < 0) {
@@ -82,7 +95,7 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
     return error({ message: "Invalid Request: sortOrder must be a number." });
   }
 
-  const clueId = clue.clueId ?? uuidv4();
+  const clueId = clue.clueId;
   try {
     await ddb.put({
       TableName: tableName,
@@ -98,9 +111,13 @@ async function putClueActivity(event: APIGatewayProxyEventV2WithJWTAuthorizer, c
         sortOrder: clue.sortOrder ?? 0,
         lastUpdatedDate: Date.now(),
       },
+      ...(request.allowOverwrite ? {} : { ConditionExpression: "attribute_not_exists(resourceId)" }),
     });
     return success({ message: "Success.", clueId: clueId });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === "ConditionalCheckFailedException") {
+      return error({ message: `A clue with id "${clueId}" already exists. Pass allowOverwrite to edit it.` });
+    }
     console.log(err);
     return fault({ message: err });
   }

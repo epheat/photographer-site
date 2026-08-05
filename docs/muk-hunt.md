@@ -26,6 +26,8 @@ Hunt id is the string `"2027"`, giving `MukHunt-2027` as the game entity — the
 |---|---|---|---|
 | Hunt *(inserted by hand)* | `MukHunt-<huntId>` | `Hunt` | `title`, `description`, `startDate`/`endDate` (epoch ms), `resourceType: "Hunt"` |
 | Clue | `MukHunt-<huntId>` | `Clue-<clueId>` | `title`, `description`, `points` (N), `selfie` (bool), `sortOrder` (N), `resourceType: "Clue"` |
+
+**Clue ids are hand-written slugs**, not uuids — `lighthouse-selfie`, matching `^[a-z0-9]+(-[a-z0-9]+)*$`. The id ends up in the sort key of every submission (`…-Submission-lighthouse-selfie`) and in every `pointHistory` entry, so a readable one makes the table legible when you're checking on things mid-event. The tradeoff is that a clue id is **immutable once players start submitting**: changing it orphans their submission rows. Titles can change freely.
 | Submission | `<cognito sub>` | `MukHunt-<huntId>-Submission-<clueId>` | `clueId`, `imageId`, `imageUrl`, `caption?`, `pointsAwarded` (N), `author`, `submittedDate`, `updatedDate`, `status: "ACCEPTED"`, `resourceType: "MukHuntSubmission"` |
 | UserPoints | `<cognito sub>` | `MukHunt-<huntId>-UserPoints` | `points` (N), `pointHistory[]`, `author`, `resourceType: "MukHuntUserPoints"` |
 
@@ -74,7 +76,7 @@ All routes carry the shared `HttpUserPoolAuthorizer`. The API's CORS config allo
 | Handler | Route | Method | Auth | Shape |
 |---|---|---|---|---|
 | `getHunt` | `/games/mukhunt/hunt` | GET | JWT | → `{hunt, clues[]}` |
-| `putClue` | `/games/mukhunt/clues` | POST | Admins | `{clue:{clueId?,title,description,points,selfie,sortOrder}}` → `{clueId}`; server generates the uuid when absent, so one handler both creates and edits |
+| `putClue` | `/games/mukhunt/clues` | POST | Admins | `{clue:{clueId,title,description,points,selfie,sortOrder}, allowOverwrite?}` → `{clueId}`. Creating is the default and is conditional on the id being free, so a mistyped id 400s instead of clobbering a clue; editing sets `allowOverwrite` |
 | `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}` |
 | `getUploadUrl` | `/games/mukhunt/uploadUrl/{imageFileName}` | GET | **JWT (any logged-in user)** | `?contentType=` → `{imageId, uploadUrl, imageUrl}` |
 | `submitPhoto` | `/games/mukhunt/submissions` | POST | JWT | `{clueId, imageId, caption?}` → `{submission, totalPoints}` |
@@ -173,7 +175,12 @@ Edits: add `{ path: '/games/MukHunt', component: MukHuntPage }` to `frontend/src
 
 **My Photos tab** — a grid of the player's own submissions, one column at `$phone` and two or three above: photo, clue title, caption, points, and a Replace button. Total points at the top.
 
-**Admin tab** — clue management only. A list of clues with Edit and Delete per row (delete behind a confirm modal), a create/edit form (title, description, points, selfie checkbox, sortOrder), and the album button below. No hunt-settings form: the hunt row and its dates are managed by hand in DynamoDB, and the tab just displays the configured window read-only.
+**Admin tab** — clue management only. A list of clues with Edit and Delete per row (delete behind a confirm modal), a create/edit form, and the album button below. No hunt-settings form: the hunt row and its dates are managed by hand in DynamoDB, and the tab just displays the configured window read-only.
+
+The clue form has a **required clue id field** — it's typed by hand, not derived from the title, so the ids stay deliberate and readable. Two rules the form has to enforce:
+
+- On **create**, the id field is editable and required, validated against `^[a-z0-9]+(-[a-z0-9]+)*$` client-side so a bad id is caught before the round trip. The request omits `allowOverwrite`, so the backend rejects a collision.
+- On **edit**, the id field is rendered **read-only** — changing it would orphan existing submissions — and the request sets `allowOverwrite: true`. Since the put replaces the whole item, the form must submit every field, not just the changed ones.
 
 ---
 
