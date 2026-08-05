@@ -68,6 +68,9 @@ export default {
   }
 
   .clue-body {
+    // claims the free space so the thumbnail is pushed to the far edge rather than sitting
+    // wherever the text happens to end
+    flex: 1;
     min-width: 0;
 
     .clue-title {
