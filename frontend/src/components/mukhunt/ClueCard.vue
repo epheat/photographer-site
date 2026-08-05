@@ -7,8 +7,10 @@
     <div class="clue-body">
       <div class="clue-title">{{ clue.title }}</div>
       <p class="clue-description">{{ clue.description }}</p>
-      <span class="selfie-tag" v-if="clue.selfie && !submission">&#9737; Selfie</span>
+      <!-- every card carries exactly one tag, so the rows all come out the same height -->
       <span class="done-tag" v-if="submission">&#10003; Got it</span>
+      <span class="selfie-tag" v-else-if="clue.selfie">&#9737; Selfie</span>
+      <span class="photo-tag" v-else>&#9723; Photo</span>
     </div>
     <div class="thumb" v-if="submission">
       <img :src="submission.imageUrl" :alt="clue.title" />
@@ -85,7 +87,7 @@ export default {
       line-height: 1.4;
       color: $mh-muted;
     }
-    .selfie-tag, .done-tag {
+    .selfie-tag, .done-tag, .photo-tag {
       @include mh-label;
       display: inline-block;
       margin-top: 8px;
@@ -98,6 +100,11 @@ export default {
     .done-tag {
       background-color: $ps-green;
       color: white;
+    }
+    // quieter than the selfie tag: it's the default, so it shouldn't compete for attention
+    .photo-tag {
+      background-color: $mh-rule;
+      color: $mh-ink;
     }
   }
 
