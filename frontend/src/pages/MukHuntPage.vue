@@ -67,10 +67,6 @@
             <div class="stat-value">{{ myPoints }}</div>
             <div class="stat-label">Points</div>
           </div>
-          <div class="stat">
-            <div class="stat-value">{{ totalPoints }}</div>
-            <div class="stat-label">Possible</div>
-          </div>
         </div>
 
         <template v-if="clues.length">
@@ -79,6 +75,7 @@
             :key="clue.clueId"
             :clue="clue"
             :submission="submissionByClueId[clue.clueId]"
+            :revealedHint="hintsUsed[clue.clueId]"
             @press="openSubmitModal(clue)"
           />
         </template>

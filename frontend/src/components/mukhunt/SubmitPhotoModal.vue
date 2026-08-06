@@ -19,12 +19,25 @@
         </span>
       </div>
 
+      <!-- once there's a photo the picker overlays it, so the modal doesn't need a separate
+           full-width button row and stays short enough to avoid scrolling on a phone -->
       <div class="preview" v-if="displayedImage">
         <div class="preview-label">{{ previewUrl ? "New photo" : "Your photo" }}</div>
         <img :src="displayedImage" alt="your photo" />
+        <label class="photo-picker overlay" :class="{ disabled: busy }">
+          <input
+            type="file"
+            accept="image/*"
+            :capture="clue?.selfie ? 'user' : 'environment'"
+            :disabled="busy"
+            @change="onFileChange"
+          />
+          <span v-if="existingSubmission && !previewUrl">Replace this photo</span>
+          <span v-else>Choose a different photo</span>
+        </label>
       </div>
 
-      <label class="photo-picker" :class="{ compact: !!displayedImage }">
+      <label class="photo-picker" v-else>
         <!-- capture opens the camera straight away on a phone; front-facing when the clue wants a selfie -->
         <input
           type="file"
@@ -33,12 +46,12 @@
           :disabled="busy"
           @change="onFileChange"
         />
-        <span v-if="!displayedImage">{{ clue?.selfie ? "Take a selfie" : "Take a photo" }}</span>
-        <span v-else-if="existingSubmission && !previewUrl">Replace this photo</span>
-        <span v-else>Choose a different photo</span>
+        <span>{{ clue?.selfie ? "Take a selfie" : "Take a photo" }}</span>
       </label>
 
-      <label class="caption-field">
+      <!-- the delete confirmation swaps in where the caption was, rather than pushing a new panel
+           below it, so arming delete doesn't shift everything down -->
+      <label class="caption-field" v-if="!confirmingDelete">
         <span class="field-label">Caption <i>(optional)</i></span>
         <textarea
           v-model="caption"
@@ -49,6 +62,10 @@
         ></textarea>
         <span class="caption-count" :class="{ near: caption.length > maxCaption - 40 }">{{ caption.length }}/{{ maxCaption }}</span>
       </label>
+      <div class="delete-confirm" v-else>
+        <span class="field-label">Delete this photo?</span>
+        <p class="delete-confirm-text">This removes it for good, and takes back the {{ existingSubmission?.pointsAwarded }} points it earned.</p>
+      </div>
 
       <div class="progress-track" v-if="status === 'uploading'">
         <div class="progress-fill" :style="{ width: `${uploadPercent}%` }"></div>
@@ -58,12 +75,6 @@
       <div class="status-note" v-else-if="status === 'submitting'">Saving your submission&hellip;</div>
       <div class="status-note" v-else-if="status === 'deleting'">Deleting&hellip;</div>
       <div class="status-error" v-if="errorMessage">{{ errorMessage }}</div>
-
-      <!-- a nested Modal would stack a second mask and swallow the backdrop click, so the
-           confirmation is a second tap on the button itself -->
-      <div class="delete-warning" v-if="confirmingDelete">
-        This removes the photo for good, and takes back the {{ existingSubmission?.pointsAwarded }} points it earned.
-      </div>
     </div>
 
     <template #actions>
@@ -248,16 +259,11 @@ export default {
         this.revealingHint = false;
       }
     },
-    // first press arms it, second one actually deletes
+    // first press arms it, second one actually deletes. The confirmation replaces the caption in
+    // place, so nothing shifts and there's no need to scroll the button back into view.
     onDeletePress() {
       if (!this.confirmingDelete) {
         this.confirmingDelete = true;
-        // the warning pushes the action row down, and with a tall photo above it that can put
-        // the confirm button off-screen - follow it down so it stays under their thumb
-        this.$nextTick(() => {
-          const container = this.$el?.querySelector?.('.modal-container');
-          if (container) container.scrollTop = container.scrollHeight;
-        });
         return;
       }
       this.deleteSubmission();
@@ -338,16 +344,6 @@ export default {
 
 <style lang="scss" scoped>
 @import "../../scss/mukhunt.scss";
-
-.delete-warning {
-  padding: 10px;
-  margin-bottom: 10px;
-  border: 2px solid $mh-pop;
-  border-radius: $mh-radius;
-  color: $mh-pop;
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
 
 // anchor for the close X, which sits against the container rather than the header text
 :deep(.modal-container) {
@@ -468,6 +464,30 @@ export default {
       max-height: 45vh;
       object-fit: contain;
     }
+
+    // once a photo is showing, replacing it is a secondary action, so it rides along the bottom
+    // of the image rather than taking its own full-width row below
+    .photo-picker.overlay {
+      @include mh-tappable;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      min-height: 40px;
+      padding: 8px;
+      background-color: rgba(34, 32, 44, 0.72);
+      color: white;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+
+      &.disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+    }
   }
 
   .photo-picker {
@@ -490,15 +510,6 @@ export default {
       height: 1px;
       opacity: 0;
       pointer-events: none;
-    }
-
-    // once a photo is showing this drops to a secondary action, but it still has to read as a
-    // button - white would disappear into the modal, so it sits a shade below it
-    &.compact {
-      min-height: 44px;
-      font-weight: 700;
-      font-size: 0.9rem;
-      background-color: #e5e1d5;
     }
   }
 
@@ -527,6 +538,24 @@ export default {
       color: $mh-muted;
 
       &.near { color: $mh-pop; }
+    }
+  }
+
+  // occupies the caption's slot while a delete is armed, so the layout holds still
+  .delete-confirm {
+    margin-bottom: 12px;
+
+    .field-label {
+      @include mh-label;
+      display: block;
+      margin-bottom: 4px;
+      color: $mh-pop;
+    }
+    .delete-confirm-text {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.35;
+      color: $mh-pop;
     }
   }
 

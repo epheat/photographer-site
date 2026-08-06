@@ -1,7 +1,7 @@
 <template>
   <div class="clue-card" :class="{ done: !!submission }" @click="this.$emit('press')">
-    <div class="points-chip">
-      <span class="value">{{ clue.points }}</span>
+    <div class="points-chip" :class="{ discounted: effectivePoints !== clue.points }">
+      <span class="value">{{ effectivePoints }}</span>
       <span class="unit">pts</span>
     </div>
     <div class="clue-body">
@@ -25,6 +25,17 @@ export default {
     clue: Object,
     // the player's own submission for this clue, when they've already got it
     submission: Object,
+    // { text, penalty } once the player has paid for this clue's hint
+    revealedHint: Object,
+  },
+  computed: {
+    // what this clue is actually worth to the player: the awarded value once submitted, or the
+    // value net of a revealed hint's penalty before that
+    effectivePoints() {
+      if (this.submission) return this.submission.pointsAwarded;
+      if (this.revealedHint) return Math.max(0, this.clue.points - (this.revealedHint.penalty ?? 0));
+      return this.clue.points;
+    },
   },
 }
 </script>
