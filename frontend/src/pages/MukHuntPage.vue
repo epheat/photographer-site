@@ -44,18 +44,12 @@
       <template v-if="hunt">
         <p class="hunt-blurb">{{ hunt.description }}</p>
 
-        <div class="window-panel">
-          <div class="status-pill" :class="huntState">{{ huntStateLabel }}</div>
-          <div class="window-dates">
-            <div class="window-row">
-              <span class="window-label">Opens</span>
-              <span class="window-value">{{ formatDate(hunt.startDate) }}</span>
-            </div>
-            <div class="window-row">
-              <span class="window-label">Closes</span>
-              <span class="window-value">{{ formatDate(hunt.endDate) }}</span>
-            </div>
-          </div>
+        <!-- a compact line rather than a boxed panel: the window only really matters when the hunt
+             isn't open, so open state is a quiet close-time reminder and the rest is a plain notice -->
+        <div class="hunt-status" :class="huntState">
+          <template v-if="huntState === 'open'">Closes {{ formatDate(hunt.endDate) }}</template>
+          <template v-else-if="huntState === 'upcoming'">Opens {{ formatDate(hunt.startDate) }} &mdash; check back then!</template>
+          <template v-else>This hunt has closed. Thanks for playing!</template>
         </div>
 
         <div class="stats" v-if="clues.length">
@@ -278,9 +272,6 @@ export default defineComponent({
       const now = new Date().getTime();
       if (now < this.hunt.startDate) return "upcoming";
       return now <= this.hunt.endDate ? "open" : "closed";
-    },
-    huntStateLabel() {
-      return { upcoming: "Not open yet", open: "Open now", closed: "Closed" }[this.huntState] ?? "";
     },
   },
   mounted() {
@@ -587,44 +578,24 @@ export default defineComponent({
   line-height: 1.45;
 }
 
-.window-panel {
-  @include mh-panel;
-  padding: 14px;
+.hunt-status {
   margin-bottom: 14px;
+  font-size: 0.9rem;
 
-  .status-pill {
-    @include mh-label;
+  // open is the common case and just a quiet reminder, so it stays muted; the other two are
+  // actionable ("come back later" / "you missed it") and get a coloured pill
+  &.open {
+    color: $mh-muted;
+  }
+  &.upcoming, &.closed {
     display: inline-block;
-    padding: 4px 10px;
+    padding: 6px 12px;
     border-radius: 20px;
-    margin-bottom: 10px;
+    font-weight: 700;
     color: white;
-    background-color: $mh-muted;
-
-    &.open { background-color: $ps-green; }
-    &.upcoming { background-color: $mh-blue; }
-    &.closed { background-color: $mh-muted; }
   }
-
-  .window-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
-
-    & + .window-row {
-      border-top: 1px dashed $mh-rule;
-    }
-
-    .window-label {
-      @include mh-label;
-    }
-    .window-value {
-      font-family: $mh-mono;
-      font-size: 0.9rem;
-      text-align: right;
-    }
-  }
+  &.upcoming { background-color: $mh-blue; }
+  &.closed { background-color: $mh-muted; }
 }
 
 .stats {
