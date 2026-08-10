@@ -1,8 +1,8 @@
 <template>
   <div class="page mukhunt-page">
     <div class="masthead">
-      <div class="kicker">Mukilteo, WA</div>
       <h1>Muk Hunt</h1>
+      <div class="kicker">Mukilteo, WA</div>
     </div>
 
     <div class="tabs">
@@ -489,14 +489,15 @@ export default defineComponent({
   // the site centers h1 globally, so the kicker follows it rather than hanging off to the left
   text-align: center;
 
-  .kicker {
-    @include mh-label;
-    color: $mh-pop;
-  }
   h1 {
-    margin: 2px 0 0;
+    margin: 0;
     font-size: 2.1rem;
     letter-spacing: -0.02em;
+  }
+  .kicker {
+    @include mh-label;
+    margin-top: 4px;
+    color: $mh-pop;
   }
 }
 
