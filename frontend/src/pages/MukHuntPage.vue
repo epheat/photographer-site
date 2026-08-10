@@ -481,6 +481,8 @@ export default defineComponent({
 @import "../scss/mukhunt.scss";
 
 .mukhunt-page {
+  // overrides the global .page background for the wedding cream; the navbar is untouched
+  background-color: $mh-bg;
   color: $mh-ink;
 }
 
@@ -500,7 +502,7 @@ export default defineComponent({
   .kicker {
     @include mh-label;
     margin-top: 4px;
-    color: $mh-pop;
+    color: $mh-lavender;
   }
 }
 
