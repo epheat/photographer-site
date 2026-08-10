@@ -19,12 +19,12 @@
         </span>
       </div>
 
-      <!-- once there's a photo the picker overlays it, so the modal doesn't need a separate
-           full-width button row and stays short enough to avoid scrolling on a phone -->
+      <!-- once there's a photo, replacing it is a small swap button tucked into the corner rather
+           than a full-width row, so the modal stays short enough to avoid scrolling on a phone -->
       <div class="preview" v-if="displayedImage">
         <div class="preview-label">{{ previewUrl ? "New photo" : "Your photo" }}</div>
         <img :src="displayedImage" alt="your photo" />
-        <label class="photo-picker overlay" :class="{ disabled: busy }">
+        <label class="replace-btn" :class="{ disabled: busy }" :title="replaceLabel" :aria-label="replaceLabel">
           <input
             type="file"
             accept="image/*"
@@ -32,8 +32,13 @@
             :disabled="busy"
             @change="onFileChange"
           />
-          <span v-if="existingSubmission && !previewUrl">Replace this photo</span>
-          <span v-else>Choose a different photo</span>
+          <!-- two arrows chasing round a circle: the standard swap/replace glyph -->
+          <svg class="swap-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="21 3 21 8 16 8" />
+            <path d="M21 8A9 9 0 0 0 5.6 5.5L3 8" />
+            <polyline points="3 21 3 16 8 16" />
+            <path d="M3 16a9 9 0 0 0 15.4 2.5L21 16" />
+          </svg>
         </label>
       </div>
 
@@ -67,12 +72,13 @@
         <p class="delete-confirm-text">This removes it for good, and takes back the {{ existingSubmission?.pointsAwarded }} points it earned.</p>
       </div>
 
-      <div class="progress-track" v-if="status === 'uploading'">
-        <div class="progress-fill" :style="{ width: `${uploadPercent}%` }"></div>
-        <span class="progress-label">Uploading&hellip; {{ uploadPercent }}%</span>
+      <!-- one bar for the whole submit. The upload is the only phase with a real percentage; the
+           quick encode and save phases before and after it animate indeterminately, so the feedback
+           doesn't flip between text and a bar and back. -->
+      <div class="progress-track" v-if="uploadInProgress" :class="{ indeterminate: status !== 'uploading' }">
+        <div class="progress-fill" :style="status === 'uploading' ? { width: `${uploadPercent}%` } : null"></div>
+        <span class="progress-label">{{ progressLabel }}</span>
       </div>
-      <div class="status-note" v-else-if="status === 'preparing'">Getting things ready&hellip;</div>
-      <div class="status-note" v-else-if="status === 'submitting'">Saving your submission&hellip;</div>
       <div class="status-note" v-else-if="status === 'deleting'">Deleting&hellip;</div>
       <div class="status-error" v-if="errorMessage">{{ errorMessage }}</div>
     </div>
@@ -176,6 +182,17 @@ export default {
     // a freshly picked file wins; otherwise fall back to whatever they submitted before
     displayedImage() {
       return this.previewUrl || this.existingSubmission?.imageUrl || "";
+    },
+    // the icon button has no visible text, so this rides on title/aria-label
+    replaceLabel() {
+      return this.existingSubmission && !this.previewUrl ? "Replace photo" : "Choose a different photo";
+    },
+    // the encode, upload, and save phases are one continuous progress bar
+    uploadInProgress() {
+      return ["preparing", "uploading", "submitting"].includes(this.status);
+    },
+    progressLabel() {
+      return this.status === "uploading" ? `Uploading… ${this.uploadPercent}%` : "Uploading…";
     },
     // a new submission needs a photo; an edit needs either a new photo or a changed caption,
     // so confirming can't be pressed until there's actually something to confirm
@@ -465,24 +482,37 @@ export default {
       object-fit: contain;
     }
 
-    // once a photo is showing, replacing it is a secondary action, so it rides along the bottom
-    // of the image rather than taking its own full-width row below
-    .photo-picker.overlay {
-      @include mh-tappable;
+    // a square swap button glued into the bottom-right corner of the photo. The container clips it,
+    // so it sits flush with the rounded corner; only the top-left corner is rounded for a tab look.
+    .replace-btn {
       position: absolute;
-      left: 0;
       right: 0;
       bottom: 0;
-      min-height: 40px;
-      padding: 8px;
-      background-color: rgba(34, 32, 44, 0.72);
+      width: 46px;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: rgba(34, 32, 44, 0.78);
       color: white;
-      font-size: 0.85rem;
-      font-weight: 700;
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
+      border-top-left-radius: $mh-radius;
+      cursor: pointer;
 
+      // the real control is unusable on a phone, so the label is the button
+      input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .swap-icon {
+        width: 24px;
+        height: 24px;
+      }
+      &:active {
+        background-color: rgba(34, 32, 44, 0.92);
+      }
       &.disabled {
         opacity: 0.5;
         pointer-events: none;
@@ -582,6 +612,19 @@ export default {
       justify-content: center;
       color: $mh-ink;
     }
+
+    // the encode/save phases have no percentage, so a fixed-width fill sweeps across instead of
+    // sitting stuck at zero
+    &.indeterminate .progress-fill {
+      width: 35%;
+      transition: none;
+      animation: mh-indeterminate 1.1s ease-in-out infinite;
+    }
+  }
+
+  @keyframes mh-indeterminate {
+    0% { margin-left: -35%; }
+    100% { margin-left: 100%; }
   }
 
   .status-note {
