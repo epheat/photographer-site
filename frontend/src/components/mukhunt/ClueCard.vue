@@ -48,6 +48,12 @@ export default {
   @include mh-pressable;
   @include mh-tappable;
 
+  // white so an unfinished clue reads as the thing to tap next, and a softer border than the
+  // near-black ink, which felt harsh against the cream page
+  background-color: white;
+  border-color: $mh-soft;
+  box-shadow: 3px 3px 0 $mh-soft;
+
   display: flex;
   align-items: stretch;
   gap: 12px;
@@ -104,18 +110,20 @@ export default {
       margin-top: 8px;
       padding: 3px 8px;
       border-radius: 20px;
-      background-color: $mh-accent;
-      color: $mh-ink;
       font-size: 0.65rem;
+    }
+    .selfie-tag {
+      background-color: $mh-lavender;
+      color: white;
     }
     .done-tag {
       background-color: $ps-green;
       color: white;
     }
-    // quieter than the selfie tag: it's the default, so it shouldn't compete for attention
+    // quieter than the selfie tag: it's the default, so a soft lavender tint rather than a solid fill
     .photo-tag {
-      background-color: $mh-rule;
-      color: $mh-ink;
+      background-color: mix($mh-lavender, white, 16%);
+      color: $mh-lavender;
     }
   }
 
@@ -137,9 +145,10 @@ export default {
     }
   }
 
-  // a completed clue reads as settled rather than as another thing to go do
+  // a completed clue reads as settled rather than as another thing to go do: it recedes to the
+  // warmer off-white while the green border and chip mark it done
   &.done {
-    background-color: white;
+    background-color: $mh-paper;
     border-color: $ps-green;
     box-shadow: 3px 3px 0 $ps-green;
 
