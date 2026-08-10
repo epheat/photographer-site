@@ -527,8 +527,8 @@ export default {
   }
 
   .photo-picker {
-    @include mh-panel($bg: $mh-accent, $offset: 3px);
-    @include mh-pressable;
+    @include mh-panel($bg: $mh-accent, $offset: 2px);
+    @include mh-pressable($offset: 2px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -537,7 +537,7 @@ export default {
     padding: 12px;
     font-weight: 700;
     text-align: center;
-    color: $mh-ink;
+    color: $mh-on-accent;
 
     // the real control is unusable on a phone, so the label is the button
     input {
@@ -606,7 +606,7 @@ export default {
 
     .progress-fill {
       height: 100%;
-      background-color: $mh-accent;
+      background-color: $mh-lavender;
       transition: width 0.15s linear;
     }
     .progress-label {

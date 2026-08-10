@@ -518,16 +518,16 @@ export default defineComponent({
     display: flex;
     align-items: center;
     justify-content: center;
-    color: $mh-ink;
+    color: $mh-on-accent;
     background-color: transparent;
-    border: 2px solid $mh-ink;
+    border: 2px solid $wedding-button;
     border-radius: $mh-radius;
     cursor: pointer;
 
     &.active {
-      background-color: $mh-accent;
-      border-color: $mh-accent;
-      color: $mh-on-accent;
+      color: $wedding-cream;
+      background-color: $wedding-button;
+      border-color: $wedding-button;
       cursor: default;
     }
   }
@@ -601,7 +601,7 @@ export default defineComponent({
     font-weight: 700;
     color: white;
   }
-  &.upcoming { background-color: $mh-blue; }
+  &.upcoming { background-color: $wedding-lavender; }
   &.closed { background-color: $mh-muted; }
 }
 
@@ -611,10 +611,7 @@ export default defineComponent({
   margin-bottom: 16px;
 
   .stat {
-    @include mh-panel($bg: $mh-accent, $offset: 2px);
-    // soften the border/shadow off the harsh navy to match the clue cards, now that the fill is sage
-    border-color: $mh-soft;
-    box-shadow: 2px 2px 0 $mh-soft;
+    @include mh-panel($bg: $wedding-sage, $offset: 0px, $border: $wedding-sage);
     flex: 1;
     padding: 10px;
     text-align: center;

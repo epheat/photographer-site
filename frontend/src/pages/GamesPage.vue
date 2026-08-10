@@ -17,7 +17,7 @@
       </div>
     </div>
     <div class="game-container" @click="onClickGame('MukHunt')">
-      <img class="game-image" alt="muk hunt logo" src="@/assets/mukhunt_logo.svg"/>
+      <img class="game-image" alt="muk hunt logo" src="@/assets/muk_hunt.png"/>
       <div class="game-text">
         <div class="game-title">MukHunt</div>
         <p class="game-description">A photo scavenger hunt around Mukilteo, WA. Track down each spot on the list, take a photo (a selfie, preferably), and rack up points for the harder finds. Running the weekend of July 15th, 2027. Requires an account to play.</p>

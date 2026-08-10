@@ -44,13 +44,9 @@ export default {
 @import "../../scss/mukhunt.scss";
 
 .clue-card {
-  @include mh-panel;
-  @include mh-pressable;
+  @include mh-panel($bg: $wedding-cream, $offset: 2px, $border: $wedding-sage-dark);
+  @include mh-pressable($offset: 2px);
   @include mh-tappable;
-
-  // softer border than the near-black ink, which felt harsh against the cream page
-  border-color: $mh-soft;
-  box-shadow: 3px 3px 0 $mh-soft;
 
   display: flex;
   align-items: stretch;
@@ -100,7 +96,6 @@ export default {
       margin: 4px 0 0;
       font-size: 0.95rem;
       line-height: 1.4;
-      color: $mh-muted;
     }
     .selfie-tag, .done-tag, .photo-tag {
       @include mh-label;
@@ -120,7 +115,7 @@ export default {
     }
     // quieter than the selfie tag: it's the default, so a soft lavender tint rather than a solid fill
     .photo-tag {
-      background-color: mix($mh-lavender, white, 16%);
+      background-color: mix($mh-lavender, white, 20%);
       color: $mh-lavender;
     }
   }
@@ -145,9 +140,8 @@ export default {
 
   // a completed clue is marked done by its green border and chip
   &.done {
-    background-color: white;
     border-color: $ps-green;
-    box-shadow: 3px 3px 0 $ps-green;
+    box-shadow: 2px 2px 0 $ps-green;
 
     .points-chip {
       background-color: $ps-green;

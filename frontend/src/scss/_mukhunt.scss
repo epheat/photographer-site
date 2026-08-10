@@ -29,15 +29,15 @@ $mh-wide: 601px;
 $mh-mono: "SF Mono", "Menlo", "Consolas", monospace;
 
 // flat drop shadow, no blur - the thing that reads as retro without looking like a bevel
-@mixin mh-panel($bg: $mh-paper, $offset: 3px) {
+@mixin mh-panel($bg: $mh-paper, $offset: 3px, $border: $mh-ink) {
   background-color: $bg;
-  border: 2px solid $mh-ink;
+  border: 2px solid $border;
   border-radius: $mh-radius;
-  box-shadow: $offset $offset 0 $mh-ink;
+  box-shadow: $offset $offset 0 $border;
 }
 
 // pairs with mh-panel: the surface sinks onto its own shadow when pressed, matching Button.vue
-@mixin mh-pressable($offset: 3px) {
+@mixin mh-pressable($offset: 2px) {
   cursor: pointer;
   transition: transform 0.06s ease, box-shadow 0.06s ease;
 
