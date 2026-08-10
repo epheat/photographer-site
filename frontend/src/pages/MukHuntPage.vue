@@ -525,8 +525,9 @@ export default defineComponent({
     cursor: pointer;
 
     &.active {
-      background-color: $mh-ink;
-      color: $mh-paper;
+      background-color: $mh-accent;
+      border-color: $mh-accent;
+      color: $mh-on-accent;
       cursor: default;
     }
   }
@@ -610,7 +611,10 @@ export default defineComponent({
   margin-bottom: 16px;
 
   .stat {
-    @include mh-panel($bg: $mh-ink, $offset: 2px);
+    @include mh-panel($bg: $mh-accent, $offset: 2px);
+    // soften the border/shadow off the harsh navy to match the clue cards, now that the fill is sage
+    border-color: $mh-soft;
+    box-shadow: 2px 2px 0 $mh-soft;
     flex: 1;
     padding: 10px;
     text-align: center;
@@ -620,11 +624,11 @@ export default defineComponent({
       font-size: 1.6rem;
       font-weight: 700;
       line-height: 1;
-      color: $mh-accent;
+      color: $mh-on-accent;
     }
     .stat-label {
       @include mh-label;
-      color: $mh-paper;
+      color: $mh-on-accent;
       margin-top: 4px;
     }
   }

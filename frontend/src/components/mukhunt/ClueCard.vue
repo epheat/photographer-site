@@ -48,9 +48,7 @@ export default {
   @include mh-pressable;
   @include mh-tappable;
 
-  // white so an unfinished clue reads as the thing to tap next, and a softer border than the
-  // near-black ink, which felt harsh against the cream page
-  background-color: white;
+  // softer border than the near-black ink, which felt harsh against the cream page
   border-color: $mh-soft;
   box-shadow: 3px 3px 0 $mh-soft;
 
@@ -67,8 +65,8 @@ export default {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background-color: $mh-ink;
-    color: $mh-accent;
+    background-color: $mh-accent;
+    color: $mh-on-accent;
     border-radius: $mh-radius - 2px;
     padding: 6px 0;
 
@@ -80,7 +78,7 @@ export default {
     }
     .unit {
       @include mh-label;
-      color: $mh-accent;
+      color: $mh-on-accent;
       font-size: 0.6rem;
       margin-top: 2px;
     }
@@ -145,10 +143,9 @@ export default {
     }
   }
 
-  // a completed clue reads as settled rather than as another thing to go do: it recedes to the
-  // warmer off-white while the green border and chip mark it done
+  // a completed clue is marked done by its green border and chip
   &.done {
-    background-color: $mh-paper;
+    background-color: white;
     border-color: $ps-green;
     box-shadow: 3px 3px 0 $ps-green;
 
