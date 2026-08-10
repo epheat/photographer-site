@@ -485,6 +485,9 @@ export default defineComponent({
 }
 
 .masthead {
+  // matches the default h1 top margin the other pages get (0.67em at their 32px h1), which our
+  // font-size override and wrapper div would otherwise drop
+  margin-top: 21px;
   margin-bottom: 16px;
   // the site centers h1 globally, so the kicker follows it rather than hanging off to the left
   text-align: center;
