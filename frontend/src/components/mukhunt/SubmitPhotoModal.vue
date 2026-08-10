@@ -72,11 +72,11 @@
         <p class="delete-confirm-text">This removes it for good, and takes back the {{ existingSubmission?.pointsAwarded }} points it earned.</p>
       </div>
 
-      <!-- one bar for the whole submit. The upload is the only phase with a real percentage; the
-           quick encode and save phases before and after it animate indeterminately, so the feedback
-           doesn't flip between text and a bar and back. -->
-      <div class="progress-track" v-if="uploadInProgress" :class="{ indeterminate: status !== 'uploading' }">
-        <div class="progress-fill" :style="status === 'uploading' ? { width: `${uploadPercent}%` } : null"></div>
+      <!-- one bar for the whole submit. It holds at 0% through the encode, tracks the real percent
+           through the upload, and holds at 99% through the save, so the feedback never flips between
+           text and a bar and back. -->
+      <div class="progress-track" v-if="uploadInProgress">
+        <div class="progress-fill" :style="{ width: `${progressPercent}%` }"></div>
         <span class="progress-label">{{ progressLabel }}</span>
       </div>
       <div class="status-note" v-else-if="status === 'deleting'">Deleting&hellip;</div>
@@ -191,8 +191,15 @@ export default {
     uploadInProgress() {
       return ["preparing", "uploading", "submitting"].includes(this.status);
     },
+    // 0% while encoding, the real percent while uploading (capped at 99 so it only reads full once
+    // actually done), then held at 99% while the submission saves
+    progressPercent() {
+      if (this.status === "uploading") return Math.min(this.uploadPercent, 99);
+      if (this.status === "submitting") return 99;
+      return 0;
+    },
     progressLabel() {
-      return this.status === "uploading" ? `Uploading… ${this.uploadPercent}%` : "Uploading…";
+      return `Uploading… ${this.progressPercent}%`;
     },
     // a new submission needs a photo; an edit needs either a new photo or a changed caption,
     // so confirming can't be pressed until there's actually something to confirm
@@ -482,12 +489,11 @@ export default {
       object-fit: contain;
     }
 
-    // a square swap button glued into the bottom-right corner of the photo. The container clips it,
-    // so it sits flush with the rounded corner; only the top-left corner is rounded for a tab look.
+    // a square swap button floating just inside the bottom-right corner of the photo
     .replace-btn {
       position: absolute;
-      right: 0;
-      bottom: 0;
+      right: 8px;
+      bottom: 8px;
       width: 46px;
       height: 46px;
       display: flex;
@@ -495,7 +501,7 @@ export default {
       justify-content: center;
       background-color: rgba(34, 32, 44, 0.78);
       color: white;
-      border-top-left-radius: $mh-radius;
+      border-radius: $mh-radius - 2px;
       cursor: pointer;
 
       // the real control is unusable on a phone, so the label is the button
@@ -612,19 +618,6 @@ export default {
       justify-content: center;
       color: $mh-ink;
     }
-
-    // the encode/save phases have no percentage, so a fixed-width fill sweeps across instead of
-    // sitting stuck at zero
-    &.indeterminate .progress-fill {
-      width: 35%;
-      transition: none;
-      animation: mh-indeterminate 1.1s ease-in-out infinite;
-    }
-  }
-
-  @keyframes mh-indeterminate {
-    0% { margin-left: -35%; }
-    100% { margin-left: 100%; }
   }
 
   .status-note {
