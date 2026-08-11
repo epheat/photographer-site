@@ -542,6 +542,9 @@ export default {
     gap: 10px;
     width: 100%;
     aspect-ratio: 4 / 3;
+    // same cap the filled preview image uses, so the empty box matches a photo's footprint and
+    // can't balloon past the viewport on a wide screen
+    max-height: 45vh;
     margin-bottom: 14px;
     border: 2px dashed $wedding-sage-dark;
     border-radius: $mh-radius;
