@@ -2,7 +2,33 @@
 
 A photo scavenger hunt around Mukilteo, WA, running **Thu Jul 15 through Sun Jul 18, 2027**. Guests get a list of clues, each worth points based on difficulty (selfies preferred), and submit a photo from their phone for each one. Photos are auto-accepted. Afterward the photos get compiled into a photo-album blog post on the site.
 
-This document is the implementation plan. Most of it is assembling patterns that already exist in the repo — the Fantasy Survivor game on `PSGameData`, the presigned-S3-upload pattern with `EHImageMetadata`, Cognito auth, and markdown blog posts. The one genuinely new piece is **an upload path ordinary logged-in users can use**; today's `/images/uploadUrl` is Admins-only and keys everything under `images/`.
+This document is the implementation plan **and running status**. Most of it is assembling patterns that already exist in the repo — the Fantasy Survivor game on `PSGameData`, the presigned-S3-upload pattern with `EHImageMetadata`, Cognito auth, and markdown blog posts. The one genuinely new piece is **an upload path ordinary logged-in users can use**; today's `/images/uploadUrl` is Admins-only and keys everything under `images/`.
+
+> **Sections 1–4, 7–9 are the original plan and remain accurate.** The **Status** section immediately below is the fast path for picking the work back up.
+
+---
+
+## Status
+
+**Branch:** all work is on `claude/muk-hunt-plan`, **unmerged**. The delivery pipeline deploys from `main`, so nothing here is live in prod until merged. For a fast dev loop use `npx cdk deploy DevStage/ps-backend` (profile `evan`, region `us-east-1`) rather than merging.
+
+**Dev data:** the hunt row is already inserted by hand into the `PSGameData` table (`entityId: MukHunt-2027`, `resourceId: Hunt`) with the real window (Thu Jul 15 06:00 → Sun Jul 18 22:00 PDT, epoch ms `1815656400000`/`1815973200000`) and the wedding welcome copy. No clues have been created yet.
+
+**Done and committed:**
+- **Backend** — all 9 endpoints in `lib/lambda/mukhunt.ts` (`getHunt`, `putClue`, `deleteClue`, `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, `revealHint`, `deleteSubmission`), wired in `lib/ps-backend-stack.ts` with the `muk-hunt/*` bucket policy and TTL enabled on `EHImageMetadata`.
+- **Frontend** — the full player flow (`MukHuntPage.vue` Hunt + My Photos tabs, `ClueCard.vue`, `SubmitPhotoModal.vue`) and the admin clue-CRUD tab. Styled to the wedding palette.
+- `test/lambda-handlers.test.ts` guards the handler-export bug class (it caught, and fixed, the pre-existing broken `images.getAllImages` export).
+
+**Deltas from the original plan (built during implementation, may not all be obvious from §1–4):**
+- **Wedding color palette** — `_colors.scss` adds `$wedding-lavender #906da7`, `$wedding-cream #fbfcf3`, `$wedding-sage #babca0`, `$wedding-sage-dark #717362`, `$wedding-button #9d8562`; `_mukhunt.scss` threads them in (page cream, lavender kicker, sage fills with `$mh-on-accent #383c2b` text, tan tabs, sage-dark card borders). The site navbar is deliberately untouched.
+- **Hints** — `revealHint` endpoint + a `MukHunt-2027-HintsUsed` per-user record; hint text is withheld from `getHunt` for non-admins. See the Hints subsection in §1.
+- **Edit & delete submissions** — `deleteSubmission` hard-deletes the S3 object, its metadata, the submission row, and revokes the points. The modal supports caption-only edits (skips re-upload) and an in-place delete confirm. The My Photos "Edit" button opens the same modal.
+- **Client-side image handling** — `SubmitPhotoModal.normalizeImage()` downscales to 2000px, re-encodes to JPEG, and applies EXIF orientation. This **mitigates the HEIC gotcha** in §9 and shrinks upload size. Upload uses XHR for a real progress bar.
+
+**Remaining:**
+- **Album markdown button** (§5) — not built yet. When building it, also add the **markdown-escaping** that `submitPhoto` owes: captions are flattened and length-capped at write time, but the album generator must escape markdown metacharacters so a caption can't restructure the public post.
+- **Real-device pass** — everything below was verified in-browser with **mock data** at 375px and desktop. The live upload → submit → delete → hint flows have **never run end-to-end against the deployed backend**; that plus `capture`/HEIC behavior on an actual phone is the biggest untested area.
+- Optional/declined: Bedrock classification (§6, deferred), a leaderboard (declined — own-progress-only), a two-tap confirm on hint reveal (declined).
 
 ### Design decisions
 
@@ -230,23 +256,23 @@ The only concession the first version makes to this is the `status: "ACCEPTED"` 
 
 ## 8. Implementation order
 
-1. `lib/lambda/mukhunt.ts` with `getHunt`; stack lambda and route. Synth, deploy dev, insert the dev hunt row by hand.
-2. Admin clue writes: `putClue`, `deleteClue`, plus wiring.
-3. Upload and submit path: `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, plus the `muk-hunt/*` bucket policy.
-4. Enable `timeToLiveAttribute: 'ttl'` on EHImageMetadata (isolated commit).
-5. Frontend scaffold: route, GamesPage card and logo, MukHuntPage tabs, ClueCard.
-6. SubmitPhotoModal and the My Photos tab.
-7. Admin tab clue CRUD.
-8. Album markdown button.
-9. Polish and the end-to-end pass in §7, including a real phone.
-10. *(Later branch)* Bedrock classification.
+1. ✅ `lib/lambda/mukhunt.ts` with `getHunt`; stack lambda and route. Synth, deploy dev, insert the dev hunt row by hand.
+2. ✅ Admin clue writes: `putClue`, `deleteClue`, plus wiring.
+3. ✅ Upload and submit path: `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, plus the `muk-hunt/*` bucket policy.
+4. ✅ Enable `timeToLiveAttribute: 'ttl'` on EHImageMetadata (isolated commit).
+5. ✅ Frontend scaffold: route, GamesPage card and logo, MukHuntPage tabs, ClueCard.
+6. ✅ SubmitPhotoModal and the My Photos tab. *(also: edit/delete submissions, hints, wedding restyle)*
+7. ✅ Admin tab clue CRUD.
+8. ⬜ Album markdown button *(next — includes the markdown-escaping owed by submit)*.
+9. ⬜ Polish and the end-to-end pass in §7, including a real phone.
+10. ⬜ *(Later branch)* Bedrock classification.
 
 ---
 
 ## 9. Risks and gotchas
 
 - **Content-Type must match the presign.** Signing with `ContentType` means the browser PUT has to send the identical header; the existing `multipart/form-data` hardcode would 403.
-- **HEIC.** iPhone library picks can be `image/heic`, which won't render outside Safari or in the album. Accept it for now — camera capture generally yields JPEG — with a client-side canvas re-encode as the mitigation if it becomes a problem.
+- **HEIC — now mitigated.** iPhone library picks can be `image/heic`, which won't render outside Safari or in the album. `SubmitPhotoModal.normalizeImage()` re-encodes every pick to JPEG on the client (canvas), so this is handled — but it has only been exercised in-browser with placeholder images, never against a real HEIC file on an iPhone. Confirm on a device.
 - **TTL timing.** Only enable table TTL alongside the 24-hour value; against the current 120 seconds it could reap rows before finalize.
 - **`pointsIndex` pollution.** `points` belongs only on UserPoints rows.
 - **UserPoints read-modify-write race.** Two near-simultaneous submits for different clues could drop a history entry. Survivor has the same exposure; acceptable at this scale, fixable with a `ConditionExpression` if it ever matters.
