@@ -75,6 +75,10 @@ export class PSBackendStack extends Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'imageId', type: dynamodb.AttributeType.STRING },
       pointInTimeRecovery: true,
+      // the upload handlers have always written a ttl, but it was never enabled, so abandoned
+      // pre-upload records never expired. Claiming an image deletes the attribute, so only
+      // records for uploads that were never submitted are ever reaped.
+      timeToLiveAttribute: 'ttl',
     });
     // TODO: GSIs for image metadata
 
@@ -102,6 +106,15 @@ export class PSBackendStack extends Stack {
       principals: [ new iam.AnyPrincipal() ],
       actions: [ 's3:GetObject' ],
       resources: [ `${staticDataBucket.bucketArn}/images/*` ]
+    }));
+    // muk hunt photos are readable straight from the bucket, the same way blog post images are,
+    // so they can be rendered in the game and later embedded in the photo album post.
+    staticDataBucket.addToResourcePolicy(new iam.PolicyStatement({
+      sid: "AllowPublicAccessForMukHuntPath",
+      effect: iam.Effect.ALLOW,
+      principals: [ new iam.AnyPrincipal() ],
+      actions: [ 's3:GetObject' ],
+      resources: [ `${staticDataBucket.bucketArn}/muk-hunt/*` ]
     }));
 
     // AuthN
@@ -263,6 +276,102 @@ export class PSBackendStack extends Stack {
     });
     imageMetadataTable.grantReadWriteData(getAllImagesMetadata);
 
+    // muk hunt functions
+    const getMukHuntLambda = new nodejs.NodejsFunction(this, 'get-muk-hunt-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getHunt',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getMukHuntLambda);
+    const putMukHuntClueLambda = new nodejs.NodejsFunction(this, 'put-muk-hunt-clue-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'putClue',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(putMukHuntClueLambda);
+    const deleteMukHuntClueLambda = new nodejs.NodejsFunction(this, 'delete-muk-hunt-clue-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'deleteClue',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(deleteMukHuntClueLambda);
+    const getMukHuntUploadUrlLambda = new nodejs.NodejsFunction(this, 'get-muk-hunt-upload-url-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getUploadUrl',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        imageMetadataTableName: imageMetadataTable.tableName,
+        staticDataBucketName: staticDataBucket.bucketName,
+      }
+    });
+    gameDataTable.grantReadData(getMukHuntUploadUrlLambda);
+    imageMetadataTable.grantReadWriteData(getMukHuntUploadUrlLambda);
+    staticDataBucket.grantReadWrite(getMukHuntUploadUrlLambda);
+    const submitMukHuntPhotoLambda = new nodejs.NodejsFunction(this, 'submit-muk-hunt-photo-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'submitPhoto',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        imageMetadataTableName: imageMetadataTable.tableName,
+        staticDataBucketName: staticDataBucket.bucketName,
+      }
+    });
+    gameDataTable.grantReadWriteData(submitMukHuntPhotoLambda);
+    imageMetadataTable.grantReadWriteData(submitMukHuntPhotoLambda);
+    const revealMukHuntHintLambda = new nodejs.NodejsFunction(this, 'reveal-muk-hunt-hint-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'revealHint',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadWriteData(revealMukHuntHintLambda);
+    const deleteMukHuntSubmissionLambda = new nodejs.NodejsFunction(this, 'delete-muk-hunt-submission-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'deleteSubmission',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        imageMetadataTableName: imageMetadataTable.tableName,
+        staticDataBucketName: staticDataBucket.bucketName,
+      }
+    });
+    gameDataTable.grantReadWriteData(deleteMukHuntSubmissionLambda);
+    imageMetadataTable.grantReadWriteData(deleteMukHuntSubmissionLambda);
+    // needs delete on the bucket, so removing a submission removes the photo itself
+    staticDataBucket.grantReadWrite(deleteMukHuntSubmissionLambda);
+    staticDataBucket.grantDelete(deleteMukHuntSubmissionLambda);
+    const getMyMukHuntSubmissionsLambda = new nodejs.NodejsFunction(this, 'get-my-muk-hunt-submissions-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getMySubmissions',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getMyMukHuntSubmissionsLambda);
+    const getAllMukHuntSubmissionsLambda = new nodejs.NodejsFunction(this, 'get-all-muk-hunt-submissions-func', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      entry: path.join(__dirname, "./lambda/mukhunt.ts"),
+      handler: 'getAllSubmissions',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+      }
+    });
+    gameDataTable.grantReadData(getAllMukHuntSubmissionsLambda);
+
     // api domain validations and certificate
     const apiUrl = `${props.domain.toLowerCase()}.${apiHostedZone.zoneName}`
     const hostedZone = new route53.HostedZone(this, 'hosted-zone', {
@@ -416,6 +525,62 @@ export class PSBackendStack extends Stack {
       path: '/games/survivor/items/{sub}',
       methods: [apigateway.HttpMethod.POST],
       integration: new integrations.HttpLambdaIntegration('put-item-integration', putItemLambda),
+      authorizer: authorizer,
+    });
+
+    // Muk Hunt API routes
+    httpApi.addRoutes({
+      path: '/games/mukhunt/hunt',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-muk-hunt-integration', getMukHuntLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/clues',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('put-muk-hunt-clue-integration', putMukHuntClueLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/clues/delete',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('delete-muk-hunt-clue-integration', deleteMukHuntClueLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/uploadUrl/{imageFileName}',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-muk-hunt-upload-url-integration', getMukHuntUploadUrlLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('submit-muk-hunt-photo-integration', submitMukHuntPhotoLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-my-muk-hunt-submissions-integration', getMyMukHuntSubmissionsLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/hints',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('reveal-muk-hunt-hint-integration', revealMukHuntHintLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions/delete',
+      methods: [apigateway.HttpMethod.POST],
+      integration: new integrations.HttpLambdaIntegration('delete-muk-hunt-submission-integration', deleteMukHuntSubmissionLambda),
+      authorizer: authorizer,
+    });
+    httpApi.addRoutes({
+      path: '/games/mukhunt/submissions/all',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration('get-all-muk-hunt-submissions-integration', getAllMukHuntSubmissionsLambda),
       authorizer: authorizer,
     });
 

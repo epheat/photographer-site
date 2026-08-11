@@ -1,8 +1,34 @@
 # Muk Hunt
 
-A photo scavenger hunt around Mukilteo, WA for the weekend of **July 17, 2027**. Guests get a list of clues, each worth points based on difficulty (selfies preferred), and submit a photo from their phone for each one. Photos are auto-accepted. Afterward the photos get compiled into a photo-album blog post on the site.
+A photo scavenger hunt around Mukilteo, WA, running **Thu Jul 15 through Sun Jul 18, 2027**. Guests get a list of clues, each worth points based on difficulty (selfies preferred), and submit a photo from their phone for each one. Photos are auto-accepted. Afterward the photos get compiled into a photo-album blog post on the site.
 
-This document is the implementation plan. Most of it is assembling patterns that already exist in the repo — the Fantasy Survivor game on `PSGameData`, the presigned-S3-upload pattern with `EHImageMetadata`, Cognito auth, and markdown blog posts. The one genuinely new piece is **an upload path ordinary logged-in users can use**; today's `/images/uploadUrl` is Admins-only and keys everything under `images/`.
+This document is the implementation plan **and running status**. Most of it is assembling patterns that already exist in the repo — the Fantasy Survivor game on `PSGameData`, the presigned-S3-upload pattern with `EHImageMetadata`, Cognito auth, and markdown blog posts. The one genuinely new piece is **an upload path ordinary logged-in users can use**; today's `/images/uploadUrl` is Admins-only and keys everything under `images/`.
+
+> **Sections 1–4, 7–9 are the original plan and remain accurate.** The **Status** section immediately below is the fast path for picking the work back up.
+
+---
+
+## Status
+
+**Branch:** all work is on `claude/muk-hunt-plan`, **unmerged**. The delivery pipeline deploys from `main`, so nothing here is live in prod until merged. For a fast dev loop use `npx cdk deploy DevStage/ps-backend` (profile `evan`, region `us-east-1`) rather than merging.
+
+**Dev data:** the hunt row is already inserted by hand into the `PSGameData` table (`entityId: MukHunt-2027`, `resourceId: Hunt`) with the real window (Thu Jul 15 06:00 → Sun Jul 18 22:00 PDT, epoch ms `1815656400000`/`1815973200000`) and the wedding welcome copy. No clues have been created yet.
+
+**Done and committed:**
+- **Backend** — all 9 endpoints in `lib/lambda/mukhunt.ts` (`getHunt`, `putClue`, `deleteClue`, `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, `revealHint`, `deleteSubmission`), wired in `lib/ps-backend-stack.ts` with the `muk-hunt/*` bucket policy and TTL enabled on `EHImageMetadata`.
+- **Frontend** — the full player flow (`MukHuntPage.vue` Hunt + My Photos tabs, `ClueCard.vue`, `SubmitPhotoModal.vue`) and the admin clue-CRUD tab. Styled to the wedding palette.
+- `test/lambda-handlers.test.ts` guards the handler-export bug class (it caught, and fixed, the pre-existing broken `images.getAllImages` export).
+
+**Deltas from the original plan (built during implementation, may not all be obvious from §1–4):**
+- **Wedding color palette** — `_colors.scss` adds `$wedding-lavender #906da7`, `$wedding-cream #fbfcf3`, `$wedding-sage #babca0`, `$wedding-sage-dark #717362`, `$wedding-button #9d8562`; `_mukhunt.scss` threads them in (page cream, lavender kicker, sage fills with `$mh-on-accent #383c2b` text, tan tabs, sage-dark card borders). The site navbar is deliberately untouched.
+- **Hints** — `revealHint` endpoint + a `MukHunt-2027-HintsUsed` per-user record; hint text is withheld from `getHunt` for non-admins. See the Hints subsection in §1.
+- **Edit & delete submissions** — `deleteSubmission` hard-deletes the S3 object, its metadata, the submission row, and revokes the points. The modal supports caption-only edits (skips re-upload) and an in-place delete confirm. The My Photos "Edit" button opens the same modal.
+- **Client-side image handling** — `SubmitPhotoModal.normalizeImage()` downscales to 2000px, re-encodes to JPEG, and applies EXIF orientation. This **mitigates the HEIC gotcha** in §9 and shrinks upload size. Upload uses XHR for a real progress bar.
+
+**Remaining:**
+- **Album markdown button** (§5) — not built yet. When building it, also add the **markdown-escaping** that `submitPhoto` owes: captions are flattened and length-capped at write time, but the album generator must escape markdown metacharacters so a caption can't restructure the public post.
+- **Real-device pass** — everything below was verified in-browser with **mock data** at 375px and desktop. The live upload → submit → delete → hint flows have **never run end-to-end against the deployed backend**; that plus `capture`/HEIC behavior on an actual phone is the biggest untested area.
+- Optional/declined: Bedrock classification (§6, deferred), a leaderboard (declined — own-progress-only), a two-tap confirm on hint reveal (declined).
 
 ### Design decisions
 
@@ -26,6 +52,22 @@ Hunt id is the string `"2027"`, giving `MukHunt-2027` as the game entity — the
 |---|---|---|---|
 | Hunt *(inserted by hand)* | `MukHunt-<huntId>` | `Hunt` | `title`, `description`, `startDate`/`endDate` (epoch ms), `resourceType: "Hunt"` |
 | Clue | `MukHunt-<huntId>` | `Clue-<clueId>` | `title`, `description`, `points` (N), `selfie` (bool), `sortOrder` (N), `resourceType: "Clue"` |
+
+**Clue ids are hand-written slugs**, not uuids — `lighthouse-selfie`, matching `^[a-z0-9]+(-[a-z0-9]+)*$`. The id ends up in the sort key of every submission (`…-Submission-lighthouse-selfie`) and in every `pointHistory` entry, so a readable one makes the table legible when you're checking on things mid-event. The tradeoff is that a clue id is **immutable once players start submitting**: changing it orphans their submission rows. Titles can change freely.
+
+**Clues are soft-deleted.** `deleteClue` sets `deleted: true` and `getHunt` filters those rows out. Submissions point at a clue by id, so keeping the record means they can always resolve back to a title when the album is built, and the id stays claimed rather than being re-adopted by a later clue that happens to reuse the name. Restoring a clue is just a `putClue` with `allowOverwrite` — the put replaces the whole item, so the flag goes away on its own. Actually purging deleted clues is a later cleanup, not something the API does.
+
+Submissions, by contrast, can be hard-deleted whenever that's needed. Nothing references them.
+
+### Hints
+
+A clue can carry a `hint` and a `hintPenalty`. Reading the hint before submitting costs that many points; the clue is then worth `points - hintPenalty`, floored at zero. Authored in the same admin form as the rest of the clue.
+
+**The hint text never ships to players in `getHunt`.** If it did, anyone could read it in devtools and the penalty would be meaningless, and the client would be on the honour system to report having seen it. Players get `hasHint` and `hintPenalty` — enough to render "Show hint (costs 5 pts)" — and the text only arrives from `POST /games/mukhunt/hints`, which records the reveal server-side as it answers. Admins do get the text back from `getHunt`, so the edit form can populate.
+
+Reveals are recorded on one user-owned row, `MukHunt-<huntId>-HintsUsed`, holding a `clueId -> {text, penalty, revealedDate}` map. Each entry **snapshots the text and penalty at reveal time**, so editing a clue later can't retroactively change what someone was charged, and reading a hint back needs no join against the clue.
+
+Revealing twice is free — the map is keyed by clue, so reopening a hint already paid for doesn't charge again. Submitting first and reading the hint afterwards also costs nothing, since `awardPoints` won't run a second time for a clue that already scored. Deleting a submission and resubmitting will charge the penalty, which is consistent: the hint is still revealed.
 | Submission | `<cognito sub>` | `MukHunt-<huntId>-Submission-<clueId>` | `clueId`, `imageId`, `imageUrl`, `caption?`, `pointsAwarded` (N), `author`, `submittedDate`, `updatedDate`, `status: "ACCEPTED"`, `resourceType: "MukHuntSubmission"` |
 | UserPoints | `<cognito sub>` | `MukHunt-<huntId>-UserPoints` | `points` (N), `pointHistory[]`, `author`, `resourceType: "MukHuntUserPoints"` |
 
@@ -44,12 +86,12 @@ Name the submission attribute **`pointsAwarded`, not `points`**. `pointsIndex` h
   "resourceType": "Hunt",
   "title": "Muk Hunt 2027",
   "description": "A photo scavenger hunt around Mukilteo, WA.",
-  "startDate": 1815552000000,
-  "endDate": 1815724799000
+  "startDate": 1815656400000,
+  "endDate": 1815973200000
 }
 ```
 
-The dates above are placeholders standing in for Fri Jul 16 2027 17:00 PT through Sun Jul 18 2027 23:59 PT — compute the real epoch ms when inserting. Widening the window later is just an item edit.
+The window runs Thu Jul 15 2027 06:00 PDT through Sun Jul 18 2027 22:00 PDT. Widening it later is just an item edit — nothing caches these values.
 
 **Points idempotency:** on submit, read UserPoints; if `pointHistory` already contains `event === "Clue-<clueId>"`, don't add points, because this is a replacement. Otherwise add `clue.points` and append history. Same guard `completePrediction` uses in `lib/lambda/survivor.ts` (around line 536).
 
@@ -74,11 +116,12 @@ All routes carry the shared `HttpUserPoolAuthorizer`. The API's CORS config allo
 | Handler | Route | Method | Auth | Shape |
 |---|---|---|---|---|
 | `getHunt` | `/games/mukhunt/hunt` | GET | JWT | → `{hunt, clues[]}` |
-| `putClue` | `/games/mukhunt/clues` | POST | Admins | `{clue:{clueId?,title,description,points,selfie,sortOrder}}` → `{clueId}`; server generates the uuid when absent, so one handler both creates and edits |
-| `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}` |
+| `putClue` | `/games/mukhunt/clues` | POST | Admins | `{clue:{clueId,title,description,points,selfie,sortOrder}, allowOverwrite?}` → `{clueId}`. Creating is the default and is conditional on the id being free, so a mistyped id 400s instead of clobbering a clue; editing sets `allowOverwrite` |
+| `deleteClue` | `/games/mukhunt/clues/delete` | POST | Admins | `{clueId}`. A soft delete — see below |
 | `getUploadUrl` | `/games/mukhunt/uploadUrl/{imageFileName}` | GET | **JWT (any logged-in user)** | `?contentType=` → `{imageId, uploadUrl, imageUrl}` |
 | `submitPhoto` | `/games/mukhunt/submissions` | POST | JWT | `{clueId, imageId, caption?}` → `{submission, totalPoints}` |
-| `getMySubmissions` | `/games/mukhunt/submissions` | GET | JWT | → `{submissions[], userPoints}` |
+| `revealHint` | `/games/mukhunt/hints` | POST | JWT | `{clueId}` → `{hint:{text,penalty}, alreadyRevealed}`. Records the reveal, which is what makes the penalty stick |
+| `getMySubmissions` | `/games/mukhunt/submissions` | GET | JWT | → `{submissions[], userPoints, hintsUsed}` |
 | `getAllSubmissions` | `/games/mukhunt/submissions/all` | GET | Admins | → `{submissions[]}`, the album source |
 
 ### `getUploadUrl`
@@ -173,7 +216,12 @@ Edits: add `{ path: '/games/MukHunt', component: MukHuntPage }` to `frontend/src
 
 **My Photos tab** — a grid of the player's own submissions, one column at `$phone` and two or three above: photo, clue title, caption, points, and a Replace button. Total points at the top.
 
-**Admin tab** — clue management only. A list of clues with Edit and Delete per row (delete behind a confirm modal), a create/edit form (title, description, points, selfie checkbox, sortOrder), and the album button below. No hunt-settings form: the hunt row and its dates are managed by hand in DynamoDB, and the tab just displays the configured window read-only.
+**Admin tab** — clue management only. A list of clues with Edit and Delete per row (delete behind a confirm modal), a create/edit form, and the album button below. No hunt-settings form: the hunt row and its dates are managed by hand in DynamoDB, and the tab just displays the configured window read-only.
+
+The clue form has a **required clue id field** — it's typed by hand, not derived from the title, so the ids stay deliberate and readable. Two rules the form has to enforce:
+
+- On **create**, the id field is editable and required, validated against `^[a-z0-9]+(-[a-z0-9]+)*$` client-side so a bad id is caught before the round trip. The request omits `allowOverwrite`, so the backend rejects a collision.
+- On **edit**, the id field is rendered **read-only** — changing it would orphan existing submissions — and the request sets `allowOverwrite: true`. Since the put replaces the whole item, the form must submit every field, not just the changed ones.
 
 ---
 
@@ -208,23 +256,23 @@ The only concession the first version makes to this is the `status: "ACCEPTED"` 
 
 ## 8. Implementation order
 
-1. `lib/lambda/mukhunt.ts` with `getHunt`; stack lambda and route. Synth, deploy dev, insert the dev hunt row by hand.
-2. Admin clue writes: `putClue`, `deleteClue`, plus wiring.
-3. Upload and submit path: `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, plus the `muk-hunt/*` bucket policy.
-4. Enable `timeToLiveAttribute: 'ttl'` on EHImageMetadata (isolated commit).
-5. Frontend scaffold: route, GamesPage card and logo, MukHuntPage tabs, ClueCard.
-6. SubmitPhotoModal and the My Photos tab.
-7. Admin tab clue CRUD.
-8. Album markdown button.
-9. Polish and the end-to-end pass in §7, including a real phone.
-10. *(Later branch)* Bedrock classification.
+1. ✅ `lib/lambda/mukhunt.ts` with `getHunt`; stack lambda and route. Synth, deploy dev, insert the dev hunt row by hand.
+2. ✅ Admin clue writes: `putClue`, `deleteClue`, plus wiring.
+3. ✅ Upload and submit path: `getUploadUrl`, `submitPhoto`, `getMySubmissions`, `getAllSubmissions`, plus the `muk-hunt/*` bucket policy.
+4. ✅ Enable `timeToLiveAttribute: 'ttl'` on EHImageMetadata (isolated commit).
+5. ✅ Frontend scaffold: route, GamesPage card and logo, MukHuntPage tabs, ClueCard.
+6. ✅ SubmitPhotoModal and the My Photos tab. *(also: edit/delete submissions, hints, wedding restyle)*
+7. ✅ Admin tab clue CRUD.
+8. ⬜ Album markdown button *(next — includes the markdown-escaping owed by submit)*.
+9. ⬜ Polish and the end-to-end pass in §7, including a real phone.
+10. ⬜ *(Later branch)* Bedrock classification.
 
 ---
 
 ## 9. Risks and gotchas
 
 - **Content-Type must match the presign.** Signing with `ContentType` means the browser PUT has to send the identical header; the existing `multipart/form-data` hardcode would 403.
-- **HEIC.** iPhone library picks can be `image/heic`, which won't render outside Safari or in the album. Accept it for now — camera capture generally yields JPEG — with a client-side canvas re-encode as the mitigation if it becomes a problem.
+- **HEIC — now mitigated.** iPhone library picks can be `image/heic`, which won't render outside Safari or in the album. `SubmitPhotoModal.normalizeImage()` re-encodes every pick to JPEG on the client (canvas), so this is handled — but it has only been exercised in-browser with placeholder images, never against a real HEIC file on an iPhone. Confirm on a device.
 - **TTL timing.** Only enable table TTL alongside the 24-hour value; against the current 120 seconds it could reap rows before finalize.
 - **`pointsIndex` pollution.** `points` belongs only on UserPoints rows.
 - **UserPoints read-modify-write race.** Two near-simultaneous submits for different clues could drop a history entry. Survivor has the same exposure; acceptable at this scale, fixable with a `ConditionExpression` if it ever matters.
