@@ -98,7 +98,7 @@
               <p class="photo-caption" v-if="submission.caption">&ldquo;{{ submission.caption }}&rdquo;</p>
               <div class="photo-footer">
                 <span class="photo-points">{{ submission.pointsAwarded }} pts</span>
-                <Button info @press="openSubmitModalForSubmission(submission)">Replace</Button>
+                <Button info @press="openSubmitModalForSubmission(submission)">Edit</Button>
               </div>
             </div>
           </div>
@@ -642,17 +642,24 @@ export default defineComponent({
   }
 
   .photo-card {
-    @include mh-panel($bg: white);
+    // same cream/sage-dark card treatment as the clue cards on the Hunt tab
+    @include mh-panel($bg: $wedding-cream, $offset: 2px, $border: $wedding-sage-dark);
     overflow: hidden;
+    // column layout so the footer can pin to the bottom and line up across cards of unequal height
+    display: flex;
+    flex-direction: column;
 
     img {
       display: block;
       width: 100%;
       aspect-ratio: 4 / 3;
       object-fit: cover;
-      border-bottom: 2px solid $mh-ink;
+      border-bottom: 2px solid $wedding-sage-dark;
     }
     .photo-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       padding: 10px 12px 12px;
     }
     .photo-title {
@@ -669,7 +676,9 @@ export default defineComponent({
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-top: 10px;
+      // pin to the bottom so the button lines up whether or not the photo has a caption
+      margin-top: auto;
+      padding-top: 10px;
     }
     .photo-points {
       @include mh-label;

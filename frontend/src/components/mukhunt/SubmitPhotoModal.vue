@@ -42,6 +42,7 @@
         </label>
       </div>
 
+      <!-- an empty dropzone the size a photo would take, so the modal doesn't jump when one is added -->
       <label class="photo-picker" v-else>
         <!-- capture opens the camera straight away on a phone; front-facing when the clue wants a selfie -->
         <input
@@ -51,6 +52,10 @@
           :disabled="busy"
           @change="onFileChange"
         />
+        <svg class="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+          <circle cx="12" cy="13" r="4" />
+        </svg>
         <span>{{ clue?.selfie ? "Take a selfie" : "Take a photo" }}</span>
       </label>
 
@@ -526,18 +531,23 @@ export default {
     }
   }
 
+  // a dashed dropzone, photo-shaped and the size a photo would fill, echoing the empty My Photos
+  // state: a camera icon over the prompt
   .photo-picker {
-    @include mh-panel($bg: $mh-accent, $offset: 2px);
-    @include mh-pressable($offset: 2px);
+    @include mh-tappable;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 64px;
+    gap: 10px;
+    width: 100%;
+    aspect-ratio: 4 / 3;
     margin-bottom: 14px;
-    padding: 12px;
+    border: 2px dashed $wedding-sage-dark;
+    border-radius: $mh-radius;
+    color: $mh-muted;
     font-weight: 700;
-    text-align: center;
-    color: $mh-on-accent;
+    cursor: pointer;
 
     // the real control is unusable on a phone, so the label is the button
     input {
@@ -546,6 +556,13 @@ export default {
       height: 1px;
       opacity: 0;
       pointer-events: none;
+    }
+    .camera-icon {
+      width: 44px;
+      height: 44px;
+    }
+    &:active {
+      background-color: rgba(113, 115, 98, 0.08);
     }
   }
 
