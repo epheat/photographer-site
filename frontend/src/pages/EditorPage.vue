@@ -28,7 +28,8 @@
 import Footer from '@/components/Footer.vue';
 import { marked } from 'marked';
 import FormField from '@/components/FormField.vue';
-import { API, Auth } from 'aws-amplify';
+import { apiGet, apiPost } from '@/utils/api';
+import { getAuthSession } from '@/auth/session';
 import { authStore } from "@/auth/store";
 
 export default {
@@ -60,8 +61,8 @@ export default {
           this.errorMessage = "Error: not logged in.";
           return;
         }
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let response = await API.post('ps-api', '/posts/new', {
+        let token = (await getAuthSession()).accessToken;
+        let response = await apiPost('/posts/new', {
           body: {
             post: {
               title: this.title,
@@ -85,8 +86,8 @@ export default {
           this.errorMessage = "Error: not logged in.";
           return;
         }
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let getUploadUrlResponse = await API.get('ps-api', `/images/uploadUrl/${this.imageFileName}`, {
+        let token = (await getAuthSession()).accessToken;
+        let getUploadUrlResponse = await apiGet(`/images/uploadUrl/${this.imageFileName}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         this.uploadUrl = getUploadUrlResponse.uploadUrl;
@@ -103,7 +104,7 @@ export default {
         });
         console.log(uploadResponse);
 
-        let putImageMetadataResponse = await API.post('ps-api', '/images/metadata', {
+        let putImageMetadataResponse = await apiPost('/images/metadata', {
           body: {
             imageId: this.imageId,
             title: this.imageTitle,

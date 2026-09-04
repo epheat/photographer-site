@@ -27,7 +27,7 @@
 </template>
 
 <script>
-import { API } from 'aws-amplify';
+import { apiGet } from '@/utils/api';
 import Footer from '@/components/Footer.vue';
 import Spinner from '@/components/Spinner.vue';
 import Button from '@/components/Button.vue';
@@ -52,7 +52,7 @@ export default {
     async loadRecipes() {
       this.loading = true;
       try {
-        const response = await API.get('ps-api', '/posts?postType=RECIPE');
+        const response = await apiGet('/posts?postType=RECIPE');
         this.recipes = response.items || [];
         this.loading = false;
       } catch (err) {

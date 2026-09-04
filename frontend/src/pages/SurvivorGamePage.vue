@@ -158,7 +158,8 @@
 
 <script>
 import Footer from '@/components/Footer';
-import {API, Auth} from "aws-amplify";
+import { apiGet, apiPost } from "@/utils/api";
+import { getAuthSession } from "@/auth/session";
 import {authStore} from "@/auth/store";
 import CastMember from "@/components/survivor/CastMember";
 import PredictionEditor from "@/components/survivor/PredictionEditor";
@@ -250,9 +251,9 @@ export default {
     async getCast() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.get('ps-api', '/games/survivor/cast', {
+        let response = await apiGet('/games/survivor/cast', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -274,9 +275,9 @@ export default {
       this.resetMessages();
       try {
         const survivors = JSON.parse(this.castEditorValue);
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/survivor/cast', {
+        let response = await apiPost('/games/survivor/cast', {
           body: {
             survivors: survivors,
           },
@@ -294,9 +295,9 @@ export default {
     async getLeaderboard() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.get('ps-api', '/games/survivor/leaderboard', {
+        let response = await apiGet('/games/survivor/leaderboard', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -311,8 +312,8 @@ export default {
     async getPredictions() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', '/games/survivor/predictions', {
+        let token = (await getAuthSession()).accessToken;
+        let response = await apiGet('/games/survivor/predictions', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -328,9 +329,9 @@ export default {
     async putPrediction(prediction) {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/survivor/predictions', {
+        let response = await apiPost('/games/survivor/predictions', {
           body: {
             prediction: prediction,
           },
@@ -348,9 +349,9 @@ export default {
     async getUserPredictions() {
       this.resetMessages();
       try {
-        let session = await Auth.currentSession();
-        let jwt = session.getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', `/games/survivor/userPredictions/${session.getIdToken().payload.sub}`, {
+        let session = await getAuthSession();
+        let jwt = session.accessToken;
+        let response = await apiGet(`/games/survivor/userPredictions/${session.idTokenPayload.sub}`, {
           headers: {
             Authorization: `Bearer ${jwt}`,
           }
@@ -366,8 +367,8 @@ export default {
     async getAllUserPredictions() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', '/games/survivor/userPredictions', {
+        let token = (await getAuthSession()).accessToken;
+        let response = await apiGet('/games/survivor/userPredictions', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -383,9 +384,9 @@ export default {
     async submitUserPrediction() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/survivor/userPredictions', {
+        let response = await apiPost('/games/survivor/userPredictions', {
           body: {
             userPrediction: {
               episode: this.selectedPrediction.episode,
@@ -435,9 +436,9 @@ export default {
         return;
       }
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/survivor/predictions/delete', {
+        let response = await apiPost('/games/survivor/predictions/delete', {
           body: {
             prediction: {
               episode: this.adminSelectedPrediction.episode,
@@ -461,9 +462,9 @@ export default {
     async submitCompletePrediction() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/survivor/predictions/complete', {
+        let response = await apiPost('/games/survivor/predictions/complete', {
           body: {
             prediction: {
               episode: this.adminSelectedPrediction.episode,
@@ -487,9 +488,9 @@ export default {
     async getInventory() {
       this.resetMessages();
       try {
-        let session = await Auth.currentSession();
-        let jwt = session.getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', `/games/survivor/userInventory/${session.getIdToken().payload.sub}`, {
+        let session = await getAuthSession();
+        let jwt = session.accessToken;
+        let response = await apiGet(`/games/survivor/userInventory/${session.idTokenPayload.sub}`, {
           headers: {
             Authorization: `Bearer ${jwt}`,
           }
@@ -590,7 +591,7 @@ export default {
       })
     },
     userSub() {
-      return authStore.state?.user?.attributes?.sub;
+      return authStore.state?.idTokenPayload?.sub;
     }
   },
   components: {

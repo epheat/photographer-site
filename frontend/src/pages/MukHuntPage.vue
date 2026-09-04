@@ -194,7 +194,8 @@
 
 <script>
 import { defineComponent } from "vue";
-import { API, Auth } from "aws-amplify";
+import { apiGet, apiPost } from "@/utils/api";
+import { getAuthSession } from "@/auth/session";
 import { authStore } from "@/auth/store";
 import Button from "@/components/Button.vue";
 import Modal from "@/components/Modal.vue";
@@ -297,9 +298,9 @@ export default defineComponent({
     async getHunt() {
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.get('ps-api', '/games/mukhunt/hunt', {
+        let response = await apiGet('/games/mukhunt/hunt', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -312,14 +313,14 @@ export default defineComponent({
         this.loading = false;
       }
     },
-    // amplify wraps a non-2xx into an axios-style error, where the handler's own message is nested.
+    // apiGet/apiPost (src/utils/api.js) already lift the handler's own message onto err.message.
     readError(err) {
-      return err.response?.data?.message ?? err.message;
+      return err.message;
     },
     async getMySubmissions() {
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', '/games/mukhunt/submissions', {
+        let token = (await getAuthSession()).accessToken;
+        let response = await apiGet('/games/mukhunt/submissions', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -410,9 +411,9 @@ export default defineComponent({
         return;
       }
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        let response = await API.post('ps-api', '/games/mukhunt/clues', {
+        let response = await apiPost('/games/mukhunt/clues', {
           body: {
             clue: clue,
             // editing replaces the whole item; creating stays conditional so a reused id is rejected.
@@ -446,9 +447,9 @@ export default defineComponent({
       if (!clueId) return;
       this.resetMessages();
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        await API.post('ps-api', '/games/mukhunt/clues/delete', {
+        await apiPost('/games/mukhunt/clues/delete', {
           body: { clueId: clueId },
           headers: {
             Authorization: `Bearer ${token}`,

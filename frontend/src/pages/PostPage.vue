@@ -26,7 +26,7 @@
 import Footer from '@/components/Footer.vue';
 import Spinner from '@/components/Spinner.vue';
 import Button from '@/components/Button.vue';
-import { API } from 'aws-amplify';
+import { apiGet } from '@/utils/api';
 import { marked } from 'marked';
 
 export default {
@@ -51,7 +51,7 @@ export default {
     async loadPost(postId) {
       this.loading = true;
       try {
-        const response = await API.get('ps-api', `/posts/${postId}`);
+        const response = await apiGet(`/posts/${postId}`);
         this.post = response.post;
         this.loading = false;
       } catch (err) {

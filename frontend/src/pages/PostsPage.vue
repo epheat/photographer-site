@@ -16,7 +16,7 @@
 </template>
 
 <script>
-import { API } from 'aws-amplify';
+import { apiGet } from '@/utils/api';
 import Footer from '@/components/Footer.vue';
 import Spinner from '@/components/Spinner.vue';
 import Post from '@/components/Post.vue';
@@ -43,7 +43,7 @@ export default {
     async loadPosts() {
       this.loading = true;
       try {
-        const posts = await API.get('ps-api', '/posts');
+        const posts = await apiGet('/posts');
         this.posts = posts.items;
         this.loading = false;
       } catch (err) {

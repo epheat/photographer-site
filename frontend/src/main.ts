@@ -3,20 +3,21 @@ import { router } from './router/router';
 import App from './App.vue'
 import { Amplify } from 'aws-amplify';
 
-// see: https://docs.amplify.aws/lib/auth/start/q/platform/js/#re-use-existing-authentication-resource
+// see: https://docs.amplify.aws/javascript/build-a-backend/troubleshooting/migrate-from-javascript-v5-to-v6/
 Amplify.configure({
     Auth: {
-        region: process.env.VUE_APP_COGNITO_REGION || "us-east-1",
-        userPoolId: process.env.VUE_APP_COGNITO_USERPOOL_ID,
-        userPoolWebClientId: process.env.VUE_APP_COGNITO_CLIENT_ID
+        Cognito: {
+            userPoolId: process.env.VUE_APP_COGNITO_USERPOOL_ID as string,
+            userPoolClientId: process.env.VUE_APP_COGNITO_CLIENT_ID as string,
+        },
     },
     API: {
-        endpoints: [
-            {
-                name: "ps-api",
-                endpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com"
+        REST: {
+            "ps-api": {
+                endpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
+                region: process.env.VUE_APP_COGNITO_REGION || "us-east-1",
             },
-        ]
+        },
     },
 })
 

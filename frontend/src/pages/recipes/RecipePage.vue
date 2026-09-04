@@ -26,7 +26,7 @@ import Footer from '@/components/Footer.vue';
 import Spinner from '@/components/Spinner.vue';
 import Button from '@/components/Button.vue';
 import RecipeView from '@/components/recipes/RecipeView.vue';
-import { API } from 'aws-amplify';
+import { apiGet } from '@/utils/api';
 import { authStore } from "@/auth/store";
 
 export default {
@@ -49,7 +49,7 @@ export default {
     async loadRecipe(postId) {
       this.loading = true;
       try {
-        const response = await API.get('ps-api', `/posts/${postId}`);
+        const response = await apiGet(`/posts/${postId}`);
         this.recipe = response.post;
         this.loading = false;
       } catch (err) {
