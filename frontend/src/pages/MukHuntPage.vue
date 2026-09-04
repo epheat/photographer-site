@@ -12,7 +12,7 @@
     </div>
 
     <div class="banner login" v-if="!loggedIn">
-      This game requires an account to play. Please <router-link to="/auth/login">Login</router-link> or <router-link to="/auth/register">Register</router-link>.
+      This game requires an account to play. Please <router-link :to="{ path: '/auth/login', query: { redirect: $route.fullPath } }">Login</router-link> or <router-link :to="{ path: '/auth/register', query: { redirect: $route.fullPath } }">Register</router-link>.
     </div>
     <div class="banner error" v-if="errorMessage">{{ errorMessage }}</div>
     <div class="banner success" v-if="successMessage">{{ successMessage }}</div>

@@ -54,6 +54,14 @@ export class PSWebsiteStack extends Stack {
       defaultRootObject: 'index.html',
       certificate: sslCertificate,
       domainNames: ['evanheaton.com', 'www.evanheaton.com'],
+      // the app is a client-side-routed SPA behind a private (OAC) S3 origin: a deep link like
+      // /posts/5 isn't a real S3 key, and a missing key comes back as 403 (not 404) since the
+      // origin has no s3:ListBucket grant to tell CloudFront "doesn't exist" from "not authorized".
+      // Rewrite both to index.html so vue-router can take over client-side.
+      errorResponses: [
+        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
+        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
+      ],
     });
     origins.S3Origin
     const aliasRecord = new route53.ARecord(this, 'alias-record', {
