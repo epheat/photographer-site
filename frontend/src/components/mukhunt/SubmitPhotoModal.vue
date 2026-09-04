@@ -100,7 +100,8 @@
 </template>
 
 <script>
-import { API, Auth } from "aws-amplify";
+import { apiGet, apiPost } from "@/utils/api";
+import { getAuthSession } from "@/auth/session";
 import Modal from "@/components/Modal.vue";
 import Button from "@/components/Button.vue";
 
@@ -276,14 +277,14 @@ export default {
       this.errorMessage = "";
       this.revealingHint = true;
       try {
-        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        const response = await API.post('ps-api', '/games/mukhunt/hints', {
+        const token = (await getAuthSession()).accessToken;
+        const response = await apiPost('/games/mukhunt/hints', {
           body: { clueId: this.clue.clueId },
           headers: { Authorization: `Bearer ${token}` },
         });
         this.$emit('revealed', { clueId: this.clue.clueId, hint: response.hint });
       } catch (err) {
-        this.errorMessage = err.response?.data?.message ?? err.message;
+        this.errorMessage = err.message;
       } finally {
         this.revealingHint = false;
       }
@@ -301,8 +302,8 @@ export default {
       this.errorMessage = "";
       try {
         this.status = "deleting";
-        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        const response = await API.post('ps-api', '/games/mukhunt/submissions/delete', {
+        const token = (await getAuthSession()).accessToken;
+        const response = await apiPost('/games/mukhunt/submissions/delete', {
           body: { clueId: this.clue.clueId },
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -311,7 +312,7 @@ export default {
         this.$emit('deleted', response);
       } catch (err) {
         this.status = "idle";
-        this.errorMessage = err.response?.data?.message ?? err.message;
+        this.errorMessage = err.message;
       }
     },
     async submit() {
@@ -322,7 +323,7 @@ export default {
       }
       this.errorMessage = "";
       try {
-        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        const token = (await getAuthSession()).accessToken;
 
         // a caption-only edit reuses the photo that's already up there, so it skips
         // straight to the submission call
@@ -332,8 +333,7 @@ export default {
           const { blob, contentType, fileName } = await normalizeImage(this.file);
 
           // encoded because phone filenames carry spaces and parens that would break the path
-          const urlResponse = await API.get(
-            'ps-api',
+          const urlResponse = await apiGet(
             `/games/mukhunt/uploadUrl/${encodeURIComponent(fileName)}?contentType=${encodeURIComponent(contentType)}`,
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -347,7 +347,7 @@ export default {
         }
 
         this.status = "submitting";
-        const submitResponse = await API.post('ps-api', '/games/mukhunt/submissions', {
+        const submitResponse = await apiPost('/games/mukhunt/submissions', {
           body: {
             clueId: this.clue.clueId,
             imageId: imageId,
@@ -360,7 +360,7 @@ export default {
         this.$emit('submitted', submitResponse);
       } catch (err) {
         this.status = "idle";
-        this.errorMessage = err.response?.data?.message ?? err.message;
+        this.errorMessage = err.message;
       }
     },
   },

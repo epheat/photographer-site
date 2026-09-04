@@ -37,7 +37,8 @@
 import FormField from "@/components/FormField";
 import FormSelect from "@/components/FormSelect";
 import Button from "@/components/Button";
-import {API, Auth} from "aws-amplify";
+import { apiGet, apiPost } from "@/utils/api";
+import { getAuthSession } from "@/auth/session";
 import InventoryItem from "@/components/survivor/InventoryItem";
 import Spinner from "@/components/Spinner";
 
@@ -65,8 +66,8 @@ export default {
     async getInventories() {
       this.loading = true;
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        let response = await API.get('ps-api', '/games/survivor/userInventory', {
+        let token = (await getAuthSession()).accessToken;
+        let response = await apiGet('/games/survivor/userInventory', {
           headers: {
             Authorization: `Bearer ${token}`,
           }
@@ -90,9 +91,9 @@ export default {
         item.multiplier = parseFloat(this.multiplier);
       }
       try {
-        let token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        let token = (await getAuthSession()).accessToken;
         this.loading = true;
-        await API.post('ps-api', `/games/survivor/items/${this.userSub}`, {
+        await apiPost(`/games/survivor/items/${this.userSub}`, {
           body: {
             item: item,
           },

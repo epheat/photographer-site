@@ -40,8 +40,8 @@
 
 <script>
 import LoginForm from "../components/LoginForm.vue";
-import { Auth } from "aws-amplify";
-import { authStore } from "../auth/store.js";
+import { signIn, updatePassword, signUp, confirmSignUp, resetPassword, confirmResetPassword } from "aws-amplify/auth";
+import { refreshAuthState } from "../auth/session.js";
 import ResetPasswordForm from '../components/ResetPasswordForm.vue';
 import RegisterForm from '../components/RegisterForm.vue';
 import ConfirmationForm from '../components/ConfirmationForm.vue';
@@ -96,11 +96,11 @@ export default {
     async onSubmit(e) {
       this.resetMessages();
       try {
-        let user = await Auth.signIn(e.username, e.password)
-        if (user.challengeName === "NEW_PASSWORD_REQUIRED") {
+        let result = await signIn({ username: e.username, password: e.password });
+        if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
           this.$router.push({ path: 'reset' });
         } else {
-          authStore.setLoggedIn(user);
+          await refreshAuthState();
           this.$router.push('/');
         }
       } catch (err) {
@@ -115,9 +115,7 @@ export default {
         return;
       }
       try {
-        let currentUser = await Auth.currentUserPoolUser();
-        let updatedUser = await Auth.changePassword(currentUser, e.currentPassword, e.newPassword1)
-        console.log(updatedUser);
+        await updatePassword({ oldPassword: e.currentPassword, newPassword: e.newPassword1 });
       } catch (err) {
         this.errorMessage = err.message;
       }
@@ -126,16 +124,19 @@ export default {
     async onRegister(e) {
       this.resetMessages();
       try {
-        let signUpResult = await Auth.signUp({
+        let signUpResult = await signUp({
           username: e.username,
           password: e.password,
-          attributes: {
-            email: e.email
+          options: {
+            userAttributes: {
+              email: e.email
+            }
           }
         })
-        if (signUpResult.codeDeliveryDetails.DeliveryMedium === "EMAIL") {
+        let codeDeliveryDetails = signUpResult.nextStep?.codeDeliveryDetails;
+        if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
-          this.successMessage = `Sent a code to your email ${signUpResult.codeDeliveryDetails.Destination}`;
+          this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
           this.$router.push({ path: 'confirm' });
         }
       } catch (err) {
@@ -146,8 +147,8 @@ export default {
     async onConfirm(e) {
       this.resetMessages();
       try {
-        let confirmationResult = await Auth.confirmSignUp(e.username, e.code);
-        if (confirmationResult === "SUCCESS") {
+        let confirmationResult = await confirmSignUp({ username: e.username, confirmationCode: e.code });
+        if (confirmationResult.isSignUpComplete) {
           this.$router.push({ path: 'login' });
         }
       } catch (err) {
@@ -158,10 +159,11 @@ export default {
     async onForgot(e) {
       this.resetMessages();
       try {
-        let forgotResult = await Auth.forgotPassword(e.username);
-        if (forgotResult.CodeDeliveryDetails.DeliveryMedium === "EMAIL") {
+        let forgotResult = await resetPassword({ username: e.username });
+        let codeDeliveryDetails = forgotResult.nextStep?.codeDeliveryDetails;
+        if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
-          this.successMessage = `Sent a code to your email ${forgotResult.CodeDeliveryDetails.Destination}`;
+          this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
           this.$router.push({ path: 'forgor2' });
         }
       } catch (err) {
@@ -176,11 +178,9 @@ export default {
         return;
       }
       try {
-        let confirmResult = await Auth.forgotPasswordSubmit(e.username, e.code, e.newPassword1);
-        if (confirmResult === "SUCCESS") {
-          this.successMessage = "Successfully reset password! 😇 Try logging in now...";
-          this.$router.push({ path: 'login' });
-        }
+        await confirmResetPassword({ username: e.username, confirmationCode: e.code, newPassword: e.newPassword1 });
+        this.successMessage = "Successfully reset password! 😇 Try logging in now...";
+        this.$router.push({ path: 'login' });
       } catch (err) {
         this.errorMessage = err.message;
       }

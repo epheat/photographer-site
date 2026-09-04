@@ -7,20 +7,12 @@
 
 <script>
 import Navbar from './components/Navbar.vue';
-import { authStore } from './auth/store.js';
-import { Auth } from 'aws-amplify';
+import { refreshAuthState } from './auth/session.js';
 
 export default {
   name: 'App',
   async beforeMount() {
-    try {
-      let user = await Auth.currentUserPoolUser();
-      if (user) {
-        authStore.setLoggedIn(user);
-      }
-    } catch (err) {
-      console.log(err);
-    }
+    await refreshAuthState();
   },
   components: {
     navbar: Navbar

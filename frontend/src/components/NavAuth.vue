@@ -14,7 +14,7 @@
 
 <script>
 import { authStore } from '@/auth/store';
-import { Auth } from 'aws-amplify';
+import { signOut } from 'aws-amplify/auth';
 
 export default {
   data() {
@@ -25,7 +25,7 @@ export default {
   methods: {
     async logout() {
       try {
-        await Auth.signOut();
+        await signOut();
         authStore.setLoggedOut();
         this.$router.push('/');
       } catch (err) {

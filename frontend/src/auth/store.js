@@ -12,6 +12,7 @@ export const authStore = {
   state: reactive({
     loggedIn: false,
     user: undefined,
+    idTokenPayload: undefined,
     isAdmin: false,
   }),
 
@@ -21,22 +22,27 @@ export const authStore = {
     }
     this.state.loggedIn = false;
     this.state.user = undefined;
+    this.state.idTokenPayload = undefined;
     this.state.isAdmin = false;
   },
 
-  setLoggedIn(user) {
+  // `user` is the AuthUser returned by getCurrentUser(); `idTokenPayload` is
+  // the decoded ID token claims from fetchAuthSession() (see auth/session.js),
+  // since v6's getCurrentUser() no longer carries the session tokens itself.
+  setLoggedIn(user, idTokenPayload) {
     if (this.debug) {
       console.log("setting logged in.");
       console.log(user);
     }
     this.state.loggedIn = true;
     this.state.user = user;
-    this.state.isAdmin = user.signInUserSession.idToken.payload["cognito:groups"]?.includes("Admins") ?? false;
+    this.state.idTokenPayload = idTokenPayload;
+    this.state.isAdmin = idTokenPayload?.["cognito:groups"]?.includes("Admins") ?? false;
   },
 
   isMember(group) {
     if (!this.state.user) return false;
-    const groups = this.state.user.signInUserSession.idToken.payload["cognito:groups"];
+    const groups = this.state.idTokenPayload?.["cognito:groups"];
     return groups && groups.includes(group);
   }
 }

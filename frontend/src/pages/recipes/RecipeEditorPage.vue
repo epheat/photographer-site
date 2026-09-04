@@ -92,7 +92,8 @@ import IngredientEditor from '@/components/recipes/IngredientEditor.vue';
 import RecipeView from '@/components/recipes/RecipeView.vue';
 import { Recipe, Ingredient, IngredientRow, IngredientSection } from '@/types/recipe';
 import { marked } from 'marked';
-import { API, Auth } from 'aws-amplify';
+import { apiGet, apiPost } from '@/utils/api';
+import { getAuthSession } from '@/auth/session';
 import { authStore } from "@/auth/store";
 
 interface RecipeEditorData {
@@ -239,7 +240,7 @@ export default defineComponent({
     },
     async loadRecipe(): Promise<void> {
       try {
-        const response = await API.get('ps-api', `/posts/${this.$route.params.postId}`, {});
+        const response = await apiGet(`/posts/${this.$route.params.postId}`, {});
         const recipe = response.post as Recipe;
         this.title = recipe.title || '';
         this.description = recipe.description || '';
@@ -270,8 +271,8 @@ export default defineComponent({
           this.uploading = false;
           return;
         }
-        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
-        const response = await API.get('ps-api', `/images/uploadUrl/${this.imageFileName}`, {
+        const token = (await getAuthSession()).accessToken;
+        const response = await apiGet(`/images/uploadUrl/${this.imageFileName}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -282,7 +283,7 @@ export default defineComponent({
         });
 
         // Finalize the image metadata (removes TTL)
-        await API.post('ps-api', '/images/metadata', {
+        await apiPost('/images/metadata', {
           body: {
             imageId: response.imageId,
             title: this.title || this.imageFileName,
@@ -318,7 +319,7 @@ export default defineComponent({
           return;
         }
 
-        const token = (await Auth.currentSession()).getAccessToken().getJwtToken();
+        const token = (await getAuthSession()).accessToken;
         const payload = {
           post: {
             postType: 'RECIPE',
@@ -327,13 +328,13 @@ export default defineComponent({
         };
 
         if (this.isEditing) {
-          await API.post('ps-api', `/posts/${this.$route.params.postId}`, {
+          await apiPost(`/posts/${this.$route.params.postId}`, {
             body: payload,
             headers: { Authorization: `Bearer ${token}` }
           });
           this.successMessage = 'Recipe updated successfully.';
         } else {
-          const response = await API.post('ps-api', '/posts/new', {
+          const response = await apiPost('/posts/new', {
             body: payload,
             headers: { Authorization: `Bearer ${token}` }
           });
