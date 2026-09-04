@@ -16,9 +16,25 @@ Each of these has a hardcoded physical name, so CloudFormation would fail to cre
 
 - [ ] **`PSPosts` table** — `lib/ps-backend-stack.ts` line 41. Prefix it like the image metadata table already is: `` `${props.domain}-PSPosts` ``.
 - [ ] **`PSGameData` table** — `lib/ps-backend-stack.ts` line 54. Same treatment.
-- [ ] **Cognito user pool and client names** — `lib/constructs/ps-auth.ts` lines 22 and 30 build names from `props.stage`, but `lib/ps-backend-stack.ts` line 109 constructs it as `new PSAuth(this, 'ps-auth')` with **no props at all**. The fallback means both stages would be named `photographerWebsiteUsers-Dev`. Pass `{ stage: props.domain }`.
+- [ ] **Cognito user pool** — decided: **one pool, shared by both stages**, not one per stage. See below.
 
-Renaming a DynamoDB table replaces it, which drops the data. Either export and re-import the existing items, or leave the live tables on their current names and prefix only for new stages. Worth deciding deliberately rather than discovering during a deploy.
+Renaming a table in CDK (adding the prefix) makes CloudFormation try to replace it, which would drop the live data. The plan:
+
+1. Point-in-time restore `PSPosts` and `PSGameData` to new tables named `Prod-PSPosts` and `Prod-PSGameData` — the prefixed name directly, since there's no rename step, only a restore-to-new-table one. PITR restore carries over key schema, GSIs, and billing mode automatically, so the restored table already matches what CDK will define. PITR itself is **not** re-enabled on the restored table by default, so turn it back on; reapply tags/TTL/streams by hand if any are set (none currently are).
+2. Add the prefixed table definitions to CDK (same billing mode, keys, GSIs — only `tableName` changes) and deploy `ProdStage` with [`cdk deploy --import-existing-resources`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/import-resources-automatically.html). Import only succeeds if the live table's config matches the template exactly, which it should given step 1. Confirm the CDK CLI version supports the flag before relying on it — it's a relatively recent addition.
+3. Once `ProdStage` is deployed and reading from the imported tables, flip `DevStage` to the prefixed names too (`Dev-PSPosts`, `Dev-PSGameData`); CDK creates those fresh and empty.
+4. Leave the original unprefixed `PSPosts`/`PSGameData` tables in place, untouched, as a rollback copy until Prod is confirmed healthy — delete them by hand afterward.
+
+### Shared user pool
+
+Decided: Dev and Prod use **the same Cognito user pool**, not one each. The pool that exists today (`us-east-1_TLQmyLdLo`, physically created inside `DevStage`'s stack) already holds the real users and the hand-created `Admins` group membership — splitting into two pools would mean migrating them, and Cognito can't export passwords, so that's a manual reset/re-invite for everyone. Not worth it for a personal site.
+
+Unlike the tables, this needs no data copy — there's only ever one physical pool:
+
+- [ ] Leave the pool and its existing `UserPoolClient` owned by `DevStage`'s `PSBackendStack` exactly as today. Don't try to move CDK ownership of the pool to `ProdStage`.
+- [ ] In `ProdStage`'s `PSBackendStack`, import it read-only with `UserPool.fromUserPoolId(this, 'ps-users', Fn.importValue('userPoolId-Dev'))` and create a **separate** `UserPoolClient` for Prod against that imported pool. The `userPoolId-Dev` export already exists (`lib/ps-backend-stack.ts` line 611); this is a deliberate cross-domain import (Prod reading Dev's export), unlike every other `-${props.domain}` export in this file, so leave a comment there explaining why.
+- [ ] Each stage keeps its own `HttpUserPoolAuthorizer` scoped to only its own client (`lib/ps-backend-stack.ts` line 423 already does this per-stage). So even though the user directory, passwords, and groups are shared, a token issued for one stage's client won't authorize against the other stage's API — the sharing is at the user/group level, not the token level.
+- [ ] Note for later: this pins the `userPoolId-Dev` CloudFormation export in place — it can't be removed or renamed while `ProdStage` imports it, even if `DevStage` is ever renamed or decommissioned.
 
 ---
 
@@ -39,7 +55,7 @@ Do this one before or alongside item 1: prefixing the tables without also fixing
 `lib/ps-website-stack.ts` hardcodes the production domain end to end — hosted zone lookup (line 37), certificate (line 42), and `domainNames: ['evanheaton.com', 'www.evanheaton.com']` on the distribution (line 56). CloudFront rejects duplicate alternate domain names across distributions, so a second stage fails at deploy time.
 
 - [ ] Derive the domain per stage, e.g. apex for Prod and `dev.evanheaton.com` for Dev, and pass it through `PSAppStageProps` alongside `domain`.
-- [ ] **Wire up the user pool values that are already imported but unused.** Lines 76 and 77 do `Fn.importValue(\`userPoolId-${props.domain}\`)` and assign to `userPoolId` / `userPoolClientId` — then nothing reads them. Both bundling paths hardcode the Dev pool instead (lines 82 and 110, local and Docker). The comment there explains why: the values were CDK tokens at the time. Resolving that is the real work; the import is already sitting there waiting.
+- [ ] **Wire up the user pool values that are already imported but unused.** Lines 76 and 77 do `Fn.importValue(\`userPoolId-${props.domain}\`)` and assign to `userPoolId` / `userPoolClientId` — then nothing reads them. Both bundling paths hardcode the Dev pool instead (lines 82 and 110, local and Docker). The comment there explains why: the values were CDK tokens at the time. Resolving that is the real work; the import is already sitting there waiting. Once the [shared user pool](#shared-user-pool) lands, `userPoolId` resolves to the same value for both stages (Dev owns it, Prod imports it) but `userPoolClientId` still needs to differ per stage, since each stage keeps its own client.
 - [ ] **`frontend/src/main.ts` line 17** — the API endpoint is a hardcoded `execute-api` URL, so every environment's frontend calls the same API. Pass it in as `VUE_APP_API_ENDPOINT` from the website stack's bundling environment, defaulting to the stage's `{domain}.api.evanheaton.com`.
 
 ---
@@ -48,7 +64,7 @@ Do this one before or alongside item 1: prefixing the tables without also fixing
 
 - [ ] **`lib/ps-backend-stack.ts` line 87** — the static data bucket is `RemovalPolicy.DESTROY`. Fine for a throwaway dev stage; not what you want holding the only copy of guest photos. Make it stage-dependent, `RETAIN` for Prod.
 - [ ] Consider `RemovalPolicy.RETAIN` plus `pointInTimeRecovery` on the Prod tables. PITR is already on for all three.
-- [ ] Decide what Dev's data should be. A dev stage that shares the prod Cognito pool isn't a dev stage; once item 1 splits the pools, you'll need a way to seed a test user and grant it the `Admins` group, which is currently created by hand in the console.
+- [ ] Decide what Dev's data should be. The [user pool is intentionally shared](#shared-user-pool), so no new test user or `Admins` group setup is needed there — existing accounts and group membership already work against both stages. What's actually empty on a fresh Dev deploy is the game/posts data itself (item 1's prefixed tables), so this is really about whether Dev needs seed data of its own, or is fine starting blank.
 
 ---
 
