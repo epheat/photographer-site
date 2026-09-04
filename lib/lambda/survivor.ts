@@ -740,7 +740,7 @@ export async function sendPredictionReminders(predictionId: string): Promise<voi
     }});
     // start with all userPoints, removing those that are present in userPredictions
     let usernamesWithoutPrediction: string[] = userPointsWithUsername.filter(item => {
-        !userPredictions.Items?.find(userPrediction => userPrediction.entityId == item.entityId);
+        return !userPredictions.Items?.find(userPrediction => userPrediction.entityId == item.entityId);
     }).map(item => {
         return item.username;
     });

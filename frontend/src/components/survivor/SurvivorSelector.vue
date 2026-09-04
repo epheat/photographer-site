@@ -62,7 +62,7 @@ export default {
     },
     shortenName(name) {
       const spaceIndex = name.indexOf(" ");
-      return `${name.substring(0, spaceIndex)}`;
+      return spaceIndex === -1 ? name : name.substring(0, spaceIndex);
     }
   },
   computed: {
