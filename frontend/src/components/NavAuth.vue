@@ -1,8 +1,8 @@
 <template>
   <div class="ps-nav-auth">
     <div class="ps-nav-container" v-if="!authStoreState.loggedIn">
-      <router-link to="/auth/login">Login</router-link>
-      <router-link to="/auth/register">Register</router-link>
+      <router-link :to="{ path: '/auth/login', query: { redirect: $route.fullPath } }">Login</router-link>
+      <router-link :to="{ path: '/auth/register', query: { redirect: $route.fullPath } }">Register</router-link>
     </div>
     <div class="ps-nav-container" v-else>
       <div class="nav-icon"></div>

@@ -7,7 +7,7 @@
       <input type="checkbox" v-model="showPassword"/>
     </div>
     <div class="form-container mb-10">
-      <div>Forgot Password? Click <router-link to="/auth/forgor">here.</router-link></div>
+      <div>Forgot Password? Click <router-link :to="{ path: '/auth/forgor', query: $route.query }">here.</router-link></div>
     </div>
     <button @click="submit">Login</button>
     <div class="error-message" v-if="errorMessage">{{ errorMessage }}</div>

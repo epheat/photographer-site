@@ -98,22 +98,27 @@ export default {
       try {
         let result = await signIn({ username: e.username, password: e.password });
         if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
-          this.$router.push({ path: 'reset' });
+          this.$router.push({ path: 'reset', query: this.$route.query });
         } else {
           await refreshAuthState();
-          this.$router.push('/');
+          this.$router.push(this.redirectTarget());
         }
       } catch (err) {
         this.errorMessage = err.message;
       }
     },
+    // where to send the user after they successfully authenticate: back to the page
+    // they were on when they clicked Login, if one was passed and it's a safe same-site path.
+    redirectTarget() {
+      const redirect = this.$route.query.redirect;
+      if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+        return redirect;
+      }
+      return '/';
+    },
     // Reset password flow
     async onReset(e) {
       this.resetMessages();
-      if (e.newPassword1 !== e.newPassword2) {
-        this.errorMessage = "New password fields must match.";
-        return;
-      }
       try {
         await updatePassword({ oldPassword: e.currentPassword, newPassword: e.newPassword1 });
       } catch (err) {
@@ -137,7 +142,7 @@ export default {
         if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
           this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
-          this.$router.push({ path: 'confirm' });
+          this.$router.push({ path: 'confirm', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -149,7 +154,7 @@ export default {
       try {
         let confirmationResult = await confirmSignUp({ username: e.username, confirmationCode: e.code });
         if (confirmationResult.isSignUpComplete) {
-          this.$router.push({ path: 'login' });
+          this.$router.push({ path: 'login', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -164,7 +169,7 @@ export default {
         if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
           this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
-          this.$router.push({ path: 'forgor2' });
+          this.$router.push({ path: 'forgor2', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -173,14 +178,10 @@ export default {
     // Forgot password part2: confirmation flow
     async onForgotConfirm(e) {
       this.resetMessages();
-      if (e.newPassword1 !== e.newPassword2) {
-        this.errorMessage = "New password fields must match.";
-        return;
-      }
       try {
         await confirmResetPassword({ username: e.username, confirmationCode: e.code, newPassword: e.newPassword1 });
         this.successMessage = "Successfully reset password! 😇 Try logging in now...";
-        this.$router.push({ path: 'login' });
+        this.$router.push({ path: 'login', query: this.$route.query });
       } catch (err) {
         this.errorMessage = err.message;
       }
