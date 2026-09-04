@@ -14,6 +14,7 @@
       <label>Show Code</label>
       <input type="checkbox" v-model="showCode"/>
     </div>
+    <p>Password requirements: {{ passwordRequirementsText }}</p>
     <form-field
       v-model="password1"
       label="New password"
@@ -29,12 +30,13 @@
       <input type="checkbox" v-model="showPassword"/>
     </div>
     <button @click="submit">Change password</button>
-    <div class="error-message" v-if="errorMessage">{{ errorMessage }}</div>
+    <div class="error-message" v-if="localError || errorMessage">{{ localError || errorMessage }}</div>
   </div>
 </template>
 
 <script>
 import FormField from "./FormField.vue";
+import { PASSWORD_REQUIREMENTS_TEXT, validatePassword } from "../auth/passwordPolicy";
 
 export default {
   props: {
@@ -49,10 +51,18 @@ export default {
       password2: "",
       showCode: false,
       showPassword: false,
+      localError: undefined,
+      passwordRequirementsText: PASSWORD_REQUIREMENTS_TEXT,
     }
   },
   methods: {
     submit() {
+      if (this.password1 !== this.password2) {
+        this.localError = "New password fields must match.";
+        return;
+      }
+      this.localError = validatePassword(this.password1);
+      if (this.localError) return;
       this.$emit('submit', {
         username: this.username,
         code: this.code,

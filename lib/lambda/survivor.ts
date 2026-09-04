@@ -778,7 +778,7 @@ export async function sendPredictionReminders(predictionId: string): Promise<voi
                 },
                 Body: {
                     Text: {
-                        Data: "Time is running out! Follow the link below to submit your predictions in FantasySurvivor!\n\nhttps://evanheaton.com/#/games/FantasySurvivor\n\n- Evan",
+                        Data: "Time is running out! Follow the link below to submit your predictions in FantasySurvivor!\n\nhttps://evanheaton.com/games/FantasySurvivor\n\n- Evan",
                     }
                 }
             }

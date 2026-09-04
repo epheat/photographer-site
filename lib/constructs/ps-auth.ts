@@ -20,7 +20,16 @@ export class PSAuth extends Construct {
       autoVerify: {
         email: true
       },
-      selfSignUpEnabled: true
+      selfSignUpEnabled: true,
+      // relaxed from the Cognito default (upper+lower+digit+symbol) to lower the signup barrier;
+      // keep frontend/src/auth/passwordPolicy.js in sync with this.
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: false,
+        requireDigits: true,
+        requireSymbols: false,
+      },
     })
     this.client = new cognito.UserPoolClient(this, 'ps-app', {
       generateSecret: false,

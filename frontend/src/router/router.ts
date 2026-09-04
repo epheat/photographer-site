@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import Home from "@/pages/Home.vue";
 import PostsPage from "@/pages/PostsPage.vue";
 import PostPage from "@/pages/PostPage.vue";
@@ -32,8 +32,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/music', component: MusicPage },
   { path: '/auth/:flowRoute', component: AuthPage, props: true },
 ]
-// TODO: don't use hash history
 export const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes: routes,
 });
