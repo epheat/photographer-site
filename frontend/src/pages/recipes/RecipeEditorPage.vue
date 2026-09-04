@@ -278,7 +278,7 @@ export default defineComponent({
 
         await fetch(response.uploadUrl, {
           method: 'PUT',
-          headers: { 'Content-Type': 'multipart/form-data' },
+          headers: { 'Content-Type': this.imageData.type },
           body: this.imageData,
         });
 

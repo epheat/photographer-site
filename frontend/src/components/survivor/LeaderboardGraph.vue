@@ -22,7 +22,7 @@ export default {
     })
   },
   watch: {
-    leaderboardData(oldData, newData) {
+    leaderboardData(newData) {
       this.graph.load({
         columns: this.getColumnsData(newData)
       })

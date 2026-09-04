@@ -98,7 +98,7 @@ export default {
       try {
         let result = await signIn({ username: e.username, password: e.password });
         if (result.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
-          this.$router.push({ path: 'reset', query: this.$route.query });
+          this.$router.push({ path: '/auth/reset', query: this.$route.query });
         } else {
           await refreshAuthState();
           this.$router.push(this.redirectTarget());
@@ -142,7 +142,7 @@ export default {
         if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
           this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
-          this.$router.push({ path: 'confirm', query: this.$route.query });
+          this.$router.push({ path: '/auth/confirm', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -154,7 +154,7 @@ export default {
       try {
         let confirmationResult = await confirmSignUp({ username: e.username, confirmationCode: e.code });
         if (confirmationResult.isSignUpComplete) {
-          this.$router.push({ path: 'login', query: this.$route.query });
+          this.$router.push({ path: '/auth/login', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -169,7 +169,7 @@ export default {
         if (codeDeliveryDetails?.deliveryMedium === "EMAIL") {
           this.stashedUsername = e.username;
           this.successMessage = `Sent a code to your email ${codeDeliveryDetails.destination}`;
-          this.$router.push({ path: 'forgor2', query: this.$route.query });
+          this.$router.push({ path: '/auth/forgor2', query: this.$route.query });
         }
       } catch (err) {
         this.errorMessage = err.message;
@@ -181,7 +181,7 @@ export default {
       try {
         await confirmResetPassword({ username: e.username, confirmationCode: e.code, newPassword: e.newPassword1 });
         this.successMessage = "Successfully reset password! 😇 Try logging in now...";
-        this.$router.push({ path: 'login', query: this.$route.query });
+        this.$router.push({ path: '/auth/login', query: this.$route.query });
       } catch (err) {
         this.errorMessage = err.message;
       }

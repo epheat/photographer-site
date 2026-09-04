@@ -11,7 +11,7 @@ import { deny } from "./responses";
 
   const before: middy.MiddlewareFn<APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2> = async (request): Promise<any> => {
       if (!userHasGroup(request.event, group)) {
-          return deny();
+          request.response = deny();
       }
   }
 

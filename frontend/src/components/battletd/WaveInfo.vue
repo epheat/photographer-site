@@ -35,7 +35,7 @@ export default defineComponent({
   computed: {
     indicatorStyle(): StyleValue {
       return {
-        left: `${this.waveState.phaseTimeRemainingMillis / this.waveState.phaseTime * 100}%`,
+        left: `${(1 - this.waveState.phaseTimeRemainingMillis / this.waveState.phaseTime) * 100}%`,
       }
     },
     phaseDescription(): string | undefined {

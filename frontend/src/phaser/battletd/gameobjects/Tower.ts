@@ -171,7 +171,7 @@ export class Tower extends Phaser.GameObjects.Container {
     const projectileSpeed = this.towerDefinition.projectile.speed;
     const deltaX = monster.x - this.x;
     const deltaY = monster.y - this.y;
-    const a = monster.velocity.x + monster.velocity.x + monster.velocity.y * monster.velocity.y - projectileSpeed * projectileSpeed;
+    const a = monster.velocity.x * monster.velocity.x + monster.velocity.y * monster.velocity.y - projectileSpeed * projectileSpeed;
     const b = 2 * deltaX * monster.velocity.x + 2 * deltaY * monster.velocity.y;
     const c = deltaX * deltaX + deltaY * deltaY;
 

@@ -140,7 +140,7 @@ export default class GameScene extends Phaser.Scene {
         this.gameSimulator.update(time, delta);
 
         if (this.gameSimulator.gameState.waveState.phase == WavePhase.PreBattlePhase && this.monsters.children.size == 0) {
-            this.spawnWave(this.gameSimulator.gameState.waveState.enemyType, this.gameSimulator.gameState.waveState.waveNumber);
+            this.spawnWave(this.gameSimulator.gameState.waveState.enemyType, this.gameSimulator.gameState.waveState.enemyCount);
         }
         if (this.gameSimulator.gameState.waveState.phase == WavePhase.BattlePhase && this.monsters.children.size == 0) {
             this.gameSimulator.gameState.waveState.complete = true;

@@ -259,7 +259,7 @@ export default {
           }
         });
         if (response.items) {
-          this.cast = response.items.sort((s1, s2) => s1.tribe < s2.tribe);
+          this.cast = response.items.sort((s1, s2) => s1.tribe.localeCompare(s2.tribe));
           this.castEditorValue = JSON.stringify(response.items, null, 2);
         } else {
           this.cast = [];
@@ -545,7 +545,7 @@ export default {
       return filteredPredictions;
     },
     completedPredictions() {
-      return this.predictions.filter(prediction => prediction.results).sort((p1, p2) => p2 - p1);
+      return this.predictions.filter(prediction => prediction.results).sort((p1, p2) => p2.predictBefore - p1.predictBefore);
     },
     closedPredictions() {
       return this.predictions.filter(prediction => !prediction.results && prediction.predictBefore < new Date().getTime());
