@@ -38,12 +38,12 @@ export class PSBackendStack extends Stack {
 
     // DynamoDB Storage
     // Users, Posts, Albums tables
-    // Phase 2: Prod uses the prefixed names, matching the PITR-restored tables it imports.
-    // Dev stays on the legacy unprefixed names until Phase 4 flips it (renaming Dev's tables
-    // is a CFN replacement, deferred to avoid churning the live site). Phase 4 replaces this
-    // whole conditional with `${props.domain}-PSPosts` / `${props.domain}-PSGameData`.
-    const postsTableName = props.domain === "Prod" ? `${props.domain}-PSPosts` : "PSPosts";
-    const gameDataTableName = props.domain === "Prod" ? `${props.domain}-PSGameData` : "PSGameData";
+    // Both stages use `${domain}-` prefixed table names. Phase 4 flipped Dev off the legacy
+    // unprefixed names (PSPosts/PSGameData); that rename is a CFN replacement, so CDK creates
+    // fresh Dev-PSPosts/Dev-PSGameData and the old tables are orphaned (RETAIN, from Phase 0)
+    // as rollback copies. Dev's new tables start empty (posts/recipes live in Prod-PSPosts).
+    const postsTableName = `${props.domain}-PSPosts`;
+    const gameDataTableName = `${props.domain}-PSGameData`;
     const postsTable = new dynamodb.Table(this, 'posts-table', {
       tableName: postsTableName,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
