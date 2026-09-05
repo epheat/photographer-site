@@ -27,14 +27,19 @@ Renaming a table in CDK (adding the prefix) makes CloudFormation try to replace 
 
 ### Shared user pool
 
-Decided: Dev and Prod use **the same Cognito user pool**, not one each. The pool that exists today (`us-east-1_TLQmyLdLo`, physically created inside `DevStage`'s stack) already holds the real users and the hand-created `Admins` group membership — splitting into two pools would mean migrating them, and Cognito can't export passwords, so that's a manual reset/re-invite for everyone. Not worth it for a personal site.
+Decided: Dev and Prod use **the same Cognito user pool**, not one each — and it lives in **its own stack**, not inside either stage's `PSBackendStack`. The pool that exists today (`us-east-1_TLQmyLdLo`) already holds the real users and the hand-created `Admins` group membership; splitting into two pools was rejected because Cognito can't export passwords, so that would mean a manual reset/re-invite for everyone. Leaving it inside `DevStage`'s stack was also rejected: that would make the throwaway/test environment permanently load-bearing for Prod's auth, and it could never be torn down or recreated without an auth-continuity plan.
 
-Unlike the tables, this needs no data copy — there's only ever one physical pool:
+A physical user pool has no PITR-style copy, so moving it is an adopt, not a copy, and the order matters:
 
-- [ ] Leave the pool and its existing `UserPoolClient` owned by `DevStage`'s `PSBackendStack` exactly as today. Don't try to move CDK ownership of the pool to `ProdStage`.
-- [ ] In `ProdStage`'s `PSBackendStack`, import it read-only with `UserPool.fromUserPoolId(this, 'ps-users', Fn.importValue('userPoolId-Dev'))` and create a **separate** `UserPoolClient` for Prod against that imported pool. The `userPoolId-Dev` export already exists (`lib/ps-backend-stack.ts` line 611); this is a deliberate cross-domain import (Prod reading Dev's export), unlike every other `-${props.domain}` export in this file, so leave a comment there explaining why.
+- [ ] Add a `PSAuthStack` (holding just the `UserPool`, no client) wrapped in a thin `PSAuthStage`, meant to be added to the pipeline **ahead of** `DevStage` and `ProdStage` so its export exists before either app stage imports it.
+- [ ] Migration sequence:
+  1. Add an explicit `RemovalPolicy.RETAIN` on the `UserPool` in `lib/constructs/ps-auth.ts` and deploy `DevStage` normally through the pipeline — a policy change, not a replacement.
+  2. Remove the `new cognito.UserPool(...)` construct from `DevStage`'s stack, temporarily pointing its existing `UserPoolClient` at `cognito.UserPool.fromUserPoolId(this, 'imported-pool', 'us-east-1_TLQmyLdLo')` (the literal ID, since `PSAuthStack` doesn't exist yet), and deploy through the pipeline. Because of the retain policy from step 1, CloudFormation drops the pool from `DevStage`'s management without touching the actual resource — it's now orphaned and CFN-unmanaged.
+  3. Define `PSAuthStack` with a `UserPool` matching the orphaned pool's exact config, and deploy it with a **local/CI `cdk deploy --import-existing-resources`**, same as the DynamoDB tables in item 1 — CodePipeline's native `CloudFormation` action can't do this, so it has to happen outside the pipeline, before `PSAuthStage` is ever added via `addStage()`.
+  4. Swap `DevStage`'s temporary literal `fromUserPoolId('us-east-1_TLQmyLdLo')` for `Fn.importValue('userPoolId')` and deploy through the pipeline. This resolves to the same ID either way, so it's cosmetic at the infrastructure level, but it's what makes `DevStage` symmetric with `ProdStage` going forward.
+  5. Only then add `PSAuthStage` to `delivery.pipeline.addStage(...)`, ahead of `devStage`.
+- [ ] `ProdStage`'s `PSBackendStack` imports the same `Fn.importValue('userPoolId')` and creates its own `UserPoolClient` against it — same as `DevStage`'s, once step 4 lands.
 - [ ] Each stage keeps its own `HttpUserPoolAuthorizer` scoped to only its own client (`lib/ps-backend-stack.ts` line 423 already does this per-stage). So even though the user directory, passwords, and groups are shared, a token issued for one stage's client won't authorize against the other stage's API — the sharing is at the user/group level, not the token level.
-- [ ] Note for later: this pins the `userPoolId-Dev` CloudFormation export in place — it can't be removed or renamed while `ProdStage` imports it, even if `DevStage` is ever renamed or decommissioned.
 
 ---
 
@@ -55,7 +60,7 @@ Do this one before or alongside item 1: prefixing the tables without also fixing
 `lib/ps-website-stack.ts` hardcodes the production domain end to end — hosted zone lookup (line 37), certificate (line 42), and `domainNames: ['evanheaton.com', 'www.evanheaton.com']` on the distribution (line 56). CloudFront rejects duplicate alternate domain names across distributions, so a second stage fails at deploy time.
 
 - [ ] Derive the domain per stage, e.g. apex for Prod and `dev.evanheaton.com` for Dev, and pass it through `PSAppStageProps` alongside `domain`.
-- [ ] **Wire up the user pool values that are already imported but unused.** Lines 76 and 77 do `Fn.importValue(\`userPoolId-${props.domain}\`)` and assign to `userPoolId` / `userPoolClientId` — then nothing reads them. Both bundling paths hardcode the Dev pool instead (lines 82 and 110, local and Docker). The comment there explains why: the values were CDK tokens at the time. Resolving that is the real work; the import is already sitting there waiting. Once the [shared user pool](#shared-user-pool) lands, `userPoolId` resolves to the same value for both stages (Dev owns it, Prod imports it) but `userPoolClientId` still needs to differ per stage, since each stage keeps its own client.
+- [ ] **Wire up the user pool values that are already imported but unused.** Lines 76 and 77 do `Fn.importValue(\`userPoolId-${props.domain}\`)` and assign to `userPoolId` / `userPoolClientId` — then nothing reads them. Both bundling paths hardcode the Dev pool instead (lines 82 and 110, local and Docker). The comment there explains why: the values were CDK tokens at the time. Resolving that is the real work; the import is already sitting there waiting. Once the [shared user pool](#shared-user-pool) lands, `userPoolId` resolves to the same value for both stages (both import it from `PSAuthStack`) but `userPoolClientId` still needs to differ per stage, since each stage keeps its own client.
 - [ ] **`frontend/src/main.ts` line 17** — the API endpoint is a hardcoded `execute-api` URL, so every environment's frontend calls the same API. Pass it in as `VUE_APP_API_ENDPOINT` from the website stack's bundling environment, defaulting to the stage's `{domain}.api.evanheaton.com`.
 
 ---
