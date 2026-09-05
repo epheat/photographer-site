@@ -32,9 +32,10 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 
 ## Phase 3 — bring up `ProdStage`'s website, un-aliased (local `cdk deploy`)
 
-- [ ] Deployed with no apex `domainNames` (or a throwaway subdomain)
-- [ ] Validated fully via `*.cloudfront.net` URL
-- [ ] Confirmed Dev is still serving the live site throughout
+- [x] Deployed with no apex `domainNames` — serves on `d21unp9xd2nfs6.cloudfront.net` (aliases null)
+- [x] Validated fully via `*.cloudfront.net` URL — deployed bundle carries Prod client + Prod API only; login + data smoke-tested
+- [x] Confirmed Dev is still serving the live site throughout
+- [x] Item 3 groundwork: frontend config (client id + API endpoint) now threaded per-stage as concrete strings (Option A), not hardcoded Dev values
 
 ## Phase 4 — flip Dev (pipeline, ordinary commit to `main`)
 
