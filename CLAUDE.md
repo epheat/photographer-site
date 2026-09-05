@@ -21,6 +21,12 @@ Personal website (evanheaton.com) with a Vue 3 frontend and AWS CDK infrastructu
 - `cd frontend && npm run build` - Production build
 - `cd frontend && npm run lint` - ESLint with auto-fix
 
+## Commit & PR Conventions
+
+- Keep commit messages brief and to-the-point: a concise summary line, and a short body only when a change genuinely needs explanation (the "why", or a non-obvious consequence). Avoid long multi-paragraph bodies.
+- Do NOT add Claude session links to commit messages or PR descriptions (no `Claude-Session:` line, no `claude.ai/code/...` URL).
+- The `Co-Authored-By: Claude ...` trailer is fine to keep as the only trailer.
+
 ## Architecture
 
 ### Two-Stack CDK Application
