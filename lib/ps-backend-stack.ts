@@ -12,6 +12,7 @@ import {
   aws_apigatewayv2_authorizers as authorizers,
   CfnOutput,
   Duration,
+  Fn,
   RemovalPolicy,
   Stack,
   StackProps
@@ -126,9 +127,10 @@ export class PSBackendStack extends Stack {
 
     // AuthN
     // a cognito userpool for vending JWTs, and associated IAM roles
-    // Staging-cleanup Phase 1 step 2: import the shared, CFN-orphaned pool by literal id.
-    // Step 4 swaps this literal for Fn.importValue('userPoolId') once PSAuthStack exists.
-    const auth = new PSAuth(this, 'ps-auth', { userPoolId: 'us-east-1_TLQmyLdLo' });
+    // Staging-cleanup Phase 1 step 4: import the shared pool id from PSAuthStack's export
+    // instead of the literal. Resolves to the same physical pool (us-east-1_TLQmyLdLo), so
+    // it's a clean update, and it makes DevStage symmetric with how ProdStage imports it.
+    const auth = new PSAuth(this, 'ps-auth', { userPoolId: Fn.importValue('userPoolId') });
 
     // Lambda functions
     const getPostsLambda = new nodejs.NodejsFunction(this, 'get-posts-func', {
