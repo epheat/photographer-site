@@ -41,7 +41,10 @@ export class PSBackendStack extends Stack {
       tableName: "PSPosts",
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'postId', type: dynamodb.AttributeType.STRING },
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      // RETAIN so the Phase 4 rename (a CFN replacement) orphans the legacy
+      // table as a rollback copy rather than deleting it. See staging-cleanup plan item 1.
+      removalPolicy: RemovalPolicy.RETAIN,
     });
     postsTable.addGlobalSecondaryIndex({
       indexName: 'postTypeTimeSorted',
@@ -56,6 +59,9 @@ export class PSBackendStack extends Stack {
       partitionKey: { name: 'entityId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'resourceId', type: dynamodb.AttributeType.STRING },
       pointInTimeRecovery: true,
+      // RETAIN so the Phase 4 rename (a CFN replacement) orphans the legacy
+      // table as a rollback copy rather than deleting it. See staging-cleanup plan item 1.
+      removalPolicy: RemovalPolicy.RETAIN,
     });
     gameDataTable.addGlobalSecondaryIndex({
       indexName: 'resourceTypeIndex',
@@ -88,7 +94,8 @@ export class PSBackendStack extends Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS,
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
-      removalPolicy: RemovalPolicy.DESTROY,
+      // Prod holds the only copy of guest photos, so retain it there; Dev is disposable.
+      removalPolicy: props.domain === "Prod" ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     });
     staticDataBucket.addCorsRule({
       allowedMethods: [
@@ -126,12 +133,14 @@ export class PSBackendStack extends Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/posts.ts"),
       handler: 'getAll',
+      environment: { postsTableName: postsTable.tableName },
     });
     postsTable.grantReadData(getPostsLambda);
     const getPostLambda = new nodejs.NodejsFunction(this, 'get-post-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/posts.ts"),
       handler: 'get',
+      environment: { postsTableName: postsTable.tableName },
     });
     postsTable.grantReadData(getPostLambda);
 
@@ -139,6 +148,7 @@ export class PSBackendStack extends Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/posts.ts"),
       handler: 'put',
+      environment: { postsTableName: postsTable.tableName },
     });
     postsTable.grantReadWriteData(createPostLambda);
 
@@ -146,6 +156,7 @@ export class PSBackendStack extends Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/posts.ts"),
       handler: 'edit',
+      environment: { postsTableName: postsTable.tableName },
     });
     postsTable.grantReadWriteData(editPostLambda);
 
@@ -154,12 +165,14 @@ export class PSBackendStack extends Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getCast',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getCastLambda);
     const setCastLambda = new nodejs.NodejsFunction(this, 'set-cast-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'setCast',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(setCastLambda);
 
@@ -167,36 +180,42 @@ export class PSBackendStack extends Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getPredictions',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getPredictionsLambda);
     const setPredictionLambda = new nodejs.NodejsFunction(this, 'set-prediction-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'setPrediction',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(setPredictionLambda);
     const deletePredictionLambda = new nodejs.NodejsFunction(this, 'del-prediction-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'deletePrediction',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(deletePredictionLambda);
     const getUserPredictionsLambda = new nodejs.NodejsFunction(this, 'get-user-predictions-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getUserPredictions',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getUserPredictionsLambda);
     const getUserPredictionLambda = new nodejs.NodejsFunction(this, 'get-user-prediction-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getUserPrediction',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getUserPredictionLambda);
     const setUserPredictionLambda = new nodejs.NodejsFunction(this, 'set-user-prediction-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'setUserPrediction',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(setUserPredictionLambda);
     const completePredictionLambda = new nodejs.NodejsFunction(this, 'complete-prediction-func', {
@@ -204,36 +223,45 @@ export class PSBackendStack extends Stack {
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'completePrediction',
       timeout: Duration.seconds(10), // it can take a while to loop through all the players.
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(completePredictionLambda);
     const getLeaderboardLambda = new nodejs.NodejsFunction(this, 'get-leaderboard-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getLeaderboard',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getLeaderboardLambda);
     const getUserInventoryLambda = new nodejs.NodejsFunction(this, 'get-user-inventory-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getUserInventory',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getUserInventoryLambda);
     const getAllUserInventoriesLambda = new nodejs.NodejsFunction(this, 'get-all-user-inventories-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'getAllInventories',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadData(getAllUserInventoriesLambda);
     const putItemLambda = new nodejs.NodejsFunction(this, 'put-item-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'putItem',
+      environment: { gameDataTableName: gameDataTable.tableName },
     });
     gameDataTable.grantReadWriteData(putItemLambda);
     const sendPredictionRemindersLambda = new nodejs.NodejsFunction(this, 'send-prediction-reminders-func', {
       runtime: lambda.Runtime.NODEJS_LATEST,
       entry: path.join(__dirname, "./lambda/survivor.ts"),
       handler: 'sendPredictionReminders',
+      environment: {
+        gameDataTableName: gameDataTable.tableName,
+        userPoolId: auth.userPool.userPoolId,
+      },
     });
     gameDataTable.grantReadData(sendPredictionRemindersLambda);
     auth.userPool.grant(sendPredictionRemindersLambda, "cognito-idp:AdminGetUser");

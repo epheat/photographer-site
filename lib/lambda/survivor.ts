@@ -12,12 +12,12 @@ import { v4 as uuidv4 } from "uuid";
 import { SendEmailCommand, SESv2Client } from "@aws-sdk/client-sesv2";
 import { Charset } from "aws-cdk-lib/aws-lambda-nodejs";
 
-const tableName = "PSGameData";
+const tableName = process.env.gameDataTableName;
 const client = new DynamoDBClient([{ region: "us-east-1" }]);
 // DynamoDB document client abstracts the mapping from ddb attributes into javascript objects.
 // docs: https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html
 const ddb = DynamoDBDocument.from(client);
-const userPoolId = "us-east-1_TLQmyLdLo"; // TODO: feed in from environment variable
+const userPoolId = process.env.userPoolId;
 const cognitoClient = new CognitoIdentityProviderClient([{ region: "us-east-1" }]);
 const sesClient = new SESv2Client([{ region: "us-east-1" }]);
 

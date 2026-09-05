@@ -8,8 +8,7 @@ import middy from '@middy/core';
 import cloudwatchMetrics, { Context } from '@middy/cloudwatch-metrics';
 import { requireGroup } from './middleware';
 
-// TODO: environment variables for constants like table name
-const tableName = "PSPosts";
+const tableName = process.env.postsTableName;
 const client = new DynamoDBClient([{ region: "us-east-1" }]);
 // DynamoDB document client abstracts the mapping from ddb attributes into javascript objects.
 // docs: https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html
