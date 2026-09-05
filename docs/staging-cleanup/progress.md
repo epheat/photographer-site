@@ -60,4 +60,4 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 ## Phase 7 — cleanup
 
 - [ ] Original unprefixed `PSPosts`/`PSGameData` tables deleted
-- [ ] Decided on Dev seed data (or confirmed fine starting blank)
+- [x] Decided on Dev seed data: keep posts+recipes (both live in `PSPosts`) — copy `PSPosts` → `Dev-PSPosts` after the rename; `Dev-PSGameData` starts empty (game data not needed in Dev). Execution happens during the Phase 4 Dev cutover.
