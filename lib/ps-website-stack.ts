@@ -23,6 +23,12 @@ export interface PSWebsiteStackProps extends StackProps {
   // resolves any imports/refs, so a token would bake in literally. See plan item 3.
   apiEndpoint: string,
   userPoolClientId: string,
+  // Primary custom domain for the distribution (e.g. 'evanheaton.com' or 'dev.evanheaton.com').
+  // Undefined = no custom domain; the site is served on the distribution's *.cloudfront.net name.
+  websiteDomain?: string,
+  // Extra domains served by the same distribution (e.g. ['www.evanheaton.com']). Each gets a
+  // cert SAN and its own alias A-record in the zone.
+  websiteDomainAliases?: string[],
 }
 
 export class PSWebsiteStack extends Stack {
@@ -37,23 +43,24 @@ export class PSWebsiteStack extends Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    // Custom apex domain wiring — Dev only for now. Staging-cleanup Phase 3 deploys Prod's
-    // website with NO custom domain (served on its *.cloudfront.net name) so it can be
-    // validated without colliding with the apex aliases Dev currently holds — CloudFront
-    // rejects duplicate alternate domain names across distributions account-wide. Phase 5
-    // adds the apex to Prod's distribution and flips Route53.
-    const useApexDomain = props.domain !== "Prod";
+    // Per-stage custom domain. Staging-cleanup Phase 4/5: Dev serves dev.evanheaton.com and
+    // Prod serves the apex evanheaton.com (+ www). An undefined websiteDomain means no custom
+    // domain — the distribution is reached on its *.cloudfront.net name. CloudFront rejects
+    // duplicate alternate domain names across distributions account-wide, so the apex can only
+    // be attached to one distribution at a time — the cutover releases it from Dev, then
+    // attaches it to Prod.
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'hostedZone', {
       hostedZoneId: 'Z0357170UGJZSZM98IY8',
       zoneName: 'evanheaton.com',
     });
+    const websiteDomains = props.websiteDomain
+      ? [props.websiteDomain, ...(props.websiteDomainAliases ?? [])]
+      : [];
     let sslCertificate: acm.Certificate | undefined;
-    if (useApexDomain) {
+    if (props.websiteDomain) {
       sslCertificate = new acm.Certificate(this, 'ssl-certificate', {
-        domainName: 'evanheaton.com',
-        subjectAlternativeNames: [
-          '*.evanheaton.com'
-        ],
+        domainName: props.websiteDomain,
+        subjectAlternativeNames: props.websiteDomainAliases,
         validation: acm.CertificateValidation.fromDns(hostedZone),
       });
     }
@@ -64,9 +71,9 @@ export class PSWebsiteStack extends Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       defaultRootObject: 'index.html',
-      ...(useApexDomain ? {
+      ...(props.websiteDomain ? {
         certificate: sslCertificate,
-        domainNames: ['evanheaton.com', 'www.evanheaton.com'],
+        domainNames: websiteDomains,
       } : {}),
       // the app is a client-side-routed SPA behind a private (OAC) S3 origin: a deep link like
       // /posts/5 isn't a real S3 key, and a missing key comes back as 403 (not 404) since the
@@ -77,12 +84,15 @@ export class PSWebsiteStack extends Stack {
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
       ],
     });
-    if (useApexDomain) {
-      new route53.ARecord(this, 'alias-record', {
+    // One alias A-record per domain: the apex uses no recordName (defaults to the zone apex);
+    // subdomains (dev, www) use their full name.
+    websiteDomains.forEach((recordDomain, i) => {
+      new route53.ARecord(this, i === 0 ? 'alias-record' : `alias-record-${i}`, {
+        ...(recordDomain === hostedZone.zoneName ? {} : { recordName: recordDomain }),
         target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
         zone: hostedZone,
       });
-    }
+    });
 
     const frontendEntry = path.join(__dirname, '../frontend'); // path to the Vue app
     new s3deploy.BucketDeployment(this, 'static-website-deployment', {

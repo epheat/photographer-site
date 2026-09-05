@@ -8,6 +8,8 @@ export interface PSAppStageProps extends StageProps {
   // Concrete per-stage values baked into the frontend build (see PSWebsiteStackProps).
   apiEndpoint: string,
   userPoolClientId: string,
+  websiteDomain?: string,
+  websiteDomainAliases?: string[],
 }
 const defaultProps: PSAppStageProps = {
   domain: "Dev",
@@ -25,6 +27,8 @@ export class PSAppStage extends Stage {
       domain: props.domain,
       apiEndpoint: props.apiEndpoint,
       userPoolClientId: props.userPoolClientId,
+      websiteDomain: props.websiteDomain,
+      websiteDomainAliases: props.websiteDomainAliases,
     });
   }
 }

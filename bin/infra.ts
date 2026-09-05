@@ -27,6 +27,7 @@ const devStage = new PSAppStage(app, 'DevStage', {
   domain: "Dev",
   apiEndpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
   userPoolClientId: "1pscc7mteomtr9o9upfbmc97bk",
+  websiteDomain: "dev.evanheaton.com",
   env: defaultEnv,
 })
 
@@ -37,6 +38,8 @@ const prodStage = new PSAppStage(app, 'ProdStage', {
   domain: "Prod",
   apiEndpoint: "https://ejocg7sajg.execute-api.us-east-1.amazonaws.com",
   userPoolClientId: "1nfu38iklkl8m08r6l6jspskr3",
+  websiteDomain: "evanheaton.com",
+  websiteDomainAliases: ["www.evanheaton.com"],
   env: defaultEnv,
 })
 
