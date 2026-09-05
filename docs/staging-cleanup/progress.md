@@ -39,8 +39,9 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 
 ## Phase 4 — flip Dev (pipeline, ordinary commit to `main`)
 
-- [ ] `DevStage` deploy covering: prefixed table names (`Dev-PSPosts`/`Dev-PSGameData`) + `domainNames: ['dev.evanheaton.com']`
-- [ ] Confirmed Dev healthy on its new table names and new domain
+- [x] Table rename: `Dev-PSPosts`/`Dev-PSGameData` created fresh+empty (local deploy); old `PSPosts`/`PSGameData` orphaned+retained as rollback; Prod untouched. Dev starts blank (decided: no data copy).
+- [ ] Domain change: Dev website → `domainNames: ['dev.evanheaton.com']` (frees the apex) — pending, coupled with Phase 5 cutover
+- [ ] Confirmed Dev healthy on its new domain
 - [ ] Confirmed apex aliases are now free (no distribution holds them)
 
 ## Phase 5 — cut Prod over to the apex (local `cdk deploy` + manual DNS)
