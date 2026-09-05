@@ -17,8 +17,8 @@ const delivery = new PSPipelineStack(app, 'PS-DeliveryPipeline', {
   env: defaultEnv,
 });
 
-// Shared user pool. Staging-cleanup Phase 1: adopted standalone via `cdk import` in step 3;
-// NOT added to delivery.pipeline.addStage(...) until step 5 (must land ahead of devStage).
+// Shared user pool. Staging-cleanup Phase 1: adopted standalone via `cdk import` in step 3,
+// then handed to the pipeline in step 5 (added ahead of devStage below).
 const authStage = new PSAuthStage(app, 'PSAuthStage', {
   env: defaultEnv,
 })
@@ -33,6 +33,11 @@ const devStage = new PSAppStage(app, 'DevStage', {
 //   env: defaultEnv,
 // })
 
+// PSAuthStage must be added AHEAD of devStage: DevStage imports userPoolId via a raw
+// Fn.importValue, which CDK Pipelines does not track as a dependency, so it won't
+// auto-order the stages. The pool stack already exists (adopted via cdk import in step 3),
+// so this first pipeline-managed deploy of it is a no-op.
+delivery.pipeline.addStage(authStage);
 delivery.pipeline.addStage(devStage);
 
 // delivery.pipeline.addStage(prodStage);
