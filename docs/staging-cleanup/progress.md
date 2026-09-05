@@ -24,11 +24,11 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 
 ## Phase 2 — bring up `ProdStage`'s backend (local `cdk deploy`)
 
-- [ ] PITR restore `PSPosts` → `Prod-PSPosts`, `PSGameData` → `Prod-PSGameData`
-- [ ] PITR re-enabled on both restored tables
-- [ ] `ProdStage` uncommented in `bin/infra.ts` (not yet added to pipeline)
-- [ ] `cdk deploy ProdStage/ps-backend --import-existing-resources` succeeded
-- [ ] Spot-checked API against the restored data
+- [x] PITR restore `PSPosts` → `Prod-PSPosts` (20 items), `PSGameData` → `Prod-PSGameData` (1502 items)
+- [x] PITR re-enabled on both restored tables
+- [x] `ProdStage` uncommented in `bin/infra.ts` (not yet added to pipeline)
+- [x] `cdk deploy ProdStage/ps-backend --import-existing-resources` succeeded — tables imported (UPDATE_COMPLETE, data preserved), everything else created; Prod client `photographerWebsite-Prod` on the shared pool
+- [x] Spot-checked API against the restored data — Prod GET /posts returns restored content
 
 ## Phase 3 — bring up `ProdStage`'s website, un-aliased (local `cdk deploy`)
 
