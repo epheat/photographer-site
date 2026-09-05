@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { aws_cognito as cognito } from "aws-cdk-lib";
+import { aws_cognito as cognito, RemovalPolicy } from "aws-cdk-lib";
 
 export interface PSAuthProps {
   stage?: String
@@ -17,6 +17,10 @@ export class PSAuth extends Construct {
     // and: https://github.com/bobbyhadz/aws-cdk-api-authorizer/blob/master/lib/cdk-starter-stack.ts
     this.userPool = new cognito.UserPool(this, 'ps-users', {
       userPoolName: `photographerWebsiteUsers-${props.stage || "Dev"}`,
+      // Safety net for the staging-cleanup Phase 1 pool extraction: RETAIN so that when
+      // the pool is later removed from DevStage's stack (step 2) CloudFormation orphans
+      // the live pool instead of deleting it. See docs/staging-cleanup/plan.md.
+      removalPolicy: RemovalPolicy.RETAIN,
       autoVerify: {
         email: true
       },
