@@ -6,19 +6,19 @@ Checklist for actually running the migration described in [plan.md](./plan.md#en
 
 ## Phase 0 — prep (pipeline, ships to `DevStage` normally)
 
-- [ ] `survivor.ts`/`posts.ts`/other lambdas read table names and pool ID from `process.env`, not hardcoded strings (item 2)
-- [ ] Static data bucket `RemovalPolicy` is stage-dependent (`RETAIN` for Prod) (item 4)
-- [ ] Explicit `RemovalPolicy.RETAIN` added to `postsTable` and `gameDataTable`
-- [ ] Deployed to `DevStage` via pipeline, confirmed healthy
+- [x] `survivor.ts`/`posts.ts`/other lambdas read table names and pool ID from `process.env`, not hardcoded strings (item 2)
+- [x] Static data bucket `RemovalPolicy` is stage-dependent (`RETAIN` for Prod) (item 4)
+- [x] Explicit `RemovalPolicy.RETAIN` added to `postsTable` and `gameDataTable`
+- [x] Deployed to `DevStage` via pipeline, confirmed healthy
 
 ## Phase 1 — extract the shared user pool (mixed pipeline/local)
 
-- [ ] Step 1: `RemovalPolicy.RETAIN` added to `UserPool` in `lib/constructs/ps-auth.ts`, deployed to `DevStage` via pipeline
-- [ ] Step 2: `UserPool` construct removed from `DevStage`, client temporarily points at `fromUserPoolId('us-east-1_TLQmyLdLo')`, deployed via pipeline (pool now orphaned)
-- [ ] Step 3: `PSAuthStack` defined, adopted via local/CI `cdk deploy --import-existing-resources`
-- [ ] Step 4: `DevStage`'s literal pool ID swapped for `Fn.importValue('userPoolId')`, deployed via pipeline
-- [ ] Step 5: `PSAuthStage` added to `delivery.pipeline.addStage(...)` ahead of `devStage`
-- [ ] Confirmed existing users/`Admins` group still work against `DevStage` post-migration
+- [x] Step 1: `RemovalPolicy.RETAIN` added to `UserPool` in `lib/constructs/ps-auth.ts`, deployed via pipeline (no-op — pool already defaulted to Retain)
+- [x] Step 2: `UserPool` construct removed from `DevStage`, client points at `fromUserPoolId('us-east-1_TLQmyLdLo')` (pool orphaned). Deployed locally back-to-back to avoid the anticipated client replacement/outage — which turned out not to happen (same resolved pool id → no client replacement)
+- [x] Step 3: `PSAuthStack`/`PSAuthStage` defined, pool adopted via local `cdk import` (NOT `--import-existing-resources`, which can't match a pool's generated id), then a normal deploy published the `userPoolId` export
+- [x] Step 4: `DevStage`'s literal pool ID swapped for `Fn.importValue('userPoolId')`, deployed (again no client replacement)
+- [x] Step 5: `PSAuthStage` added to `delivery.pipeline.addStage(...)` ahead of `devStage`; pipeline green with PSAuthStage sequenced before DevStage
+- [x] Confirmed existing users log in against `DevStage` after each step (no auth downtime)
 
 _(Can start the PITR restores below in parallel — they don't touch the live pool.)_
 
