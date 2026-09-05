@@ -40,17 +40,17 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 ## Phase 4 — flip Dev (pipeline, ordinary commit to `main`)
 
 - [x] Table rename: `Dev-PSPosts`/`Dev-PSGameData` created fresh+empty (local deploy); old `PSPosts`/`PSGameData` orphaned+retained as rollback; Prod untouched. Dev starts blank (decided: no data copy).
-- [ ] Domain change: Dev website → `domainNames: ['dev.evanheaton.com']` (frees the apex) — pending, coupled with Phase 5 cutover
-- [ ] Confirmed Dev healthy on its new domain
-- [ ] Confirmed apex aliases are now free (no distribution holds them)
+- [x] Domain change: Dev website → `domainNames: ['dev.evanheaton.com']` (freed the apex); local deploy
+- [x] Confirmed Dev healthy on its new domain — `dev.evanheaton.com` resolves to Dev's distribution
+- [x] Apex aliases freed from Dev, then claimed by Prod (see Phase 5)
 
 ## Phase 5 — cut Prod over to the apex (local `cdk deploy` + manual DNS)
 
-- [ ] `ProdStage` website stack redeployed with `domainNames: ['evanheaton.com', 'www.evanheaton.com']`
-- [ ] Route53 apex `ARecord` flipped to Prod's distribution
-- [ ] Out-of-band `www.evanheaton.com` record found and repointed to Prod
-- [ ] Cutover done off-peak, downtime window observed and accepted
-- [ ] `evanheaton.com` confirmed serving from Prod
+- [x] `ProdStage` website stack redeployed with `domainNames: ['evanheaton.com', 'www.evanheaton.com']`
+- [x] Route53 apex `ARecord` flipped to Prod's distribution — done via CDK (Dev deploy removed it, Prod deploy created it), no manual edit
+- [x] `www.evanheaton.com` — it never resolved before; now a real Route53 alias A-record → Prod (improvement, not just a repoint)
+- [x] Cutover done back-to-back locally; DNS via Route53 alias so propagation was fast
+- [x] `evanheaton.com` confirmed serving from Prod (HTTP 200, Prod bundle) — interactive login check still to do
 
 ## Phase 6 — hand Prod to the pipeline (pipeline structure change)
 
