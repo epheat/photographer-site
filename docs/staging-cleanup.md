@@ -21,7 +21,7 @@ Each of these has a hardcoded physical name, so CloudFormation would fail to cre
 Renaming a table in CDK (adding the prefix) makes CloudFormation try to replace it, which would drop the live data. The plan:
 
 1. Point-in-time restore `PSPosts` and `PSGameData` to new tables named `Prod-PSPosts` and `Prod-PSGameData` — the prefixed name directly, since there's no rename step, only a restore-to-new-table one. PITR restore carries over key schema, GSIs, and billing mode automatically, so the restored table already matches what CDK will define. PITR itself is **not** re-enabled on the restored table by default, so turn it back on; reapply tags/TTL/streams by hand if any are set (none currently are).
-2. Add the prefixed table definitions to CDK (same billing mode, keys, GSIs — only `tableName` changes) and deploy `ProdStage` with [`cdk deploy --import-existing-resources`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/import-resources-automatically.html). Import only succeeds if the live table's config matches the template exactly, which it should given step 1. Confirm the CDK CLI version supports the flag before relying on it — it's a relatively recent addition.
+2. Add the prefixed table definitions to CDK (same billing mode, keys, GSIs — only `tableName` changes) and deploy `ProdStage` with [`cdk deploy --import-existing-resources`](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/import-resources-automatically.html). **This has to be a local/CI `cdk deploy`, not the pipeline** — `ImportExistingResources` is a `CreateChangeSet` API parameter that CDK's CLI sets for you, but CodePipeline's native `CloudFormation` deploy action (what `lib/ps-pipeline-stack.ts`'s `pipelines.CodePipeline` actually uses to deploy every stack) doesn't expose that parameter at all, and CDK Pipelines doesn't wire it through either. So: run `cdk deploy` for `ProdStage` directly, from outside the pipeline, *before* adding `ProdStage` to `delivery.pipeline.addStage(...)` in item 5 — once the stack exists and is healthy, the pipeline's ordinary changeset flow takes over and no further importing is needed. Import only succeeds if the live table's config matches the template exactly, which it should given step 1.
 3. Once `ProdStage` is deployed and reading from the imported tables, flip `DevStage` to the prefixed names too (`Dev-PSPosts`, `Dev-PSGameData`); CDK creates those fresh and empty.
 4. Leave the original unprefixed `PSPosts`/`PSGameData` tables in place, untouched, as a rollback copy until Prod is confirmed healthy — delete them by hand afterward.
 
@@ -70,7 +70,7 @@ Do this one before or alongside item 1: prefixing the tables without also fixing
 
 ## 5. Pipeline
 
-- [ ] `bin/infra.ts` — uncomment `ProdStage` and add it to the pipeline, once the above is done.
+- [ ] `bin/infra.ts` — uncomment `ProdStage`, but don't add it to the pipeline yet. First deploy it standalone with a local/CI `cdk deploy --import-existing-resources` (see item 1) so the restored tables get imported outside of CodePipeline's changeset flow, which can't do that. Only call `delivery.pipeline.addStage(prodStage)` once that initial deploy has succeeded.
 - [ ] Add a manual approval step before the Prod stage. `lib/ps-pipeline-stack.ts` deploys straight from `main` with no gate.
 - [ ] Consider whether Dev should deploy from a branch other than `main`, so there's somewhere to test a change before it reaches the live site.
 
