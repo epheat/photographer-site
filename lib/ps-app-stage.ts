@@ -4,10 +4,15 @@ import { PSBackendStack } from './ps-backend-stack';
 import { PSWebsiteStack } from './ps-website-stack';
 
 export interface PSAppStageProps extends StageProps {
-  domain: String
+  domain: String,
+  // Concrete per-stage values baked into the frontend build (see PSWebsiteStackProps).
+  apiEndpoint: string,
+  userPoolClientId: string,
 }
 const defaultProps: PSAppStageProps = {
   domain: "Dev",
+  apiEndpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
+  userPoolClientId: "1pscc7mteomtr9o9upfbmc97bk",
 }
 
 export class PSAppStage extends Stage {
@@ -18,6 +23,8 @@ export class PSAppStage extends Stage {
     });
     const websiteStack = new PSWebsiteStack(this, 'ps-website', {
       domain: props.domain,
+      apiEndpoint: props.apiEndpoint,
+      userPoolClientId: props.userPoolClientId,
     });
   }
 }

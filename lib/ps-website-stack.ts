@@ -7,7 +7,6 @@ import {
   aws_s3 as s3,
   aws_s3_deployment as s3deploy,
   DockerImage,
-  Fn,
   PhysicalName,
   Stack,
   StackProps
@@ -18,7 +17,12 @@ import * as fs from "fs-extra";
 import { Construct } from "constructs";
 
 export interface PSWebsiteStackProps extends StackProps {
-  domain: String
+  domain: String,
+  // Concrete (synth-time) values baked into the frontend build. They must be plain strings,
+  // not CDK tokens: the bundling `npm run build` runs at synth time, before CloudFormation
+  // resolves any imports/refs, so a token would bake in literally. See plan item 3.
+  apiEndpoint: string,
+  userPoolClientId: string,
 }
 
 export class PSWebsiteStack extends Stack {
@@ -33,18 +37,26 @@ export class PSWebsiteStack extends Stack {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    // Website hosted at evanheaton.com
+    // Custom apex domain wiring — Dev only for now. Staging-cleanup Phase 3 deploys Prod's
+    // website with NO custom domain (served on its *.cloudfront.net name) so it can be
+    // validated without colliding with the apex aliases Dev currently holds — CloudFront
+    // rejects duplicate alternate domain names across distributions account-wide. Phase 5
+    // adds the apex to Prod's distribution and flips Route53.
+    const useApexDomain = props.domain !== "Prod";
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'hostedZone', {
       hostedZoneId: 'Z0357170UGJZSZM98IY8',
       zoneName: 'evanheaton.com',
     });
-    const sslCertificate = new acm.Certificate(this, 'ssl-certificate', {
-      domainName: 'evanheaton.com',
-      subjectAlternativeNames: [
-        '*.evanheaton.com'
-      ],
-      validation: acm.CertificateValidation.fromDns(hostedZone),
-    });
+    let sslCertificate: acm.Certificate | undefined;
+    if (useApexDomain) {
+      sslCertificate = new acm.Certificate(this, 'ssl-certificate', {
+        domainName: 'evanheaton.com',
+        subjectAlternativeNames: [
+          '*.evanheaton.com'
+        ],
+        validation: acm.CertificateValidation.fromDns(hostedZone),
+      });
+    }
     const distribution = new cloudfront.Distribution(this, 'cloudfront-distribution', {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
@@ -52,8 +64,10 @@ export class PSWebsiteStack extends Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
       defaultRootObject: 'index.html',
-      certificate: sslCertificate,
-      domainNames: ['evanheaton.com', 'www.evanheaton.com'],
+      ...(useApexDomain ? {
+        certificate: sslCertificate,
+        domainNames: ['evanheaton.com', 'www.evanheaton.com'],
+      } : {}),
       // the app is a client-side-routed SPA behind a private (OAC) S3 origin: a deep link like
       // /posts/5 isn't a real S3 key, and a missing key comes back as 403 (not 404) since the
       // origin has no s3:ListBucket grant to tell CloudFront "doesn't exist" from "not authorized".
@@ -63,14 +77,12 @@ export class PSWebsiteStack extends Stack {
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
       ],
     });
-    origins.S3Origin
-    const aliasRecord = new route53.ARecord(this, 'alias-record', {
-      target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
-      zone: hostedZone,
-    });
-
-    const userPoolId = Fn.importValue(`userPoolId-${props.domain}`);
-    const userPoolClientId = Fn.importValue(`userPoolClientId-${props.domain}`);
+    if (useApexDomain) {
+      new route53.ARecord(this, 'alias-record', {
+        target: route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution)),
+        zone: hostedZone,
+      });
+    }
 
     const frontendEntry = path.join(__dirname, '../frontend'); // path to the Vue app
     new s3deploy.BucketDeployment(this, 'static-website-deployment', {
@@ -88,7 +100,8 @@ export class PSWebsiteStack extends Stack {
                     env: {
                       ...process.env,
                       VUE_APP_COGNITO_USERPOOL_ID: "us-east-1_TLQmyLdLo",
-                      VUE_APP_COGNITO_CLIENT_ID: "1pscc7mteomtr9o9upfbmc97bk",
+                      VUE_APP_COGNITO_CLIENT_ID: props.userPoolClientId,
+                      VUE_APP_API_ENDPOINT: props.apiEndpoint,
                     },
                     cwd: frontendEntry
                   });
@@ -112,11 +125,12 @@ export class PSWebsiteStack extends Stack {
               ].join('&&'),
             ],
             environment: {
-              // tried to reference the userpool attributes, but those are CDK IResolvable tokens.
-              // i'll just hard code for now, anyways the clientId and userpoolId aren't secrets.
-              // https://stackoverflow.com/questions/41277968/securing-aws-cognito-user-pool-and-client-id-on-a-static-web-page
+              // These are concrete per-stage strings (not CDK tokens), passed in via props,
+              // because the build runs at synth time. userPoolId is the shared pool; clientId
+              // and apiEndpoint differ per stage. None are secrets. See plan item 3.
               VUE_APP_COGNITO_USERPOOL_ID: "us-east-1_TLQmyLdLo",
-              VUE_APP_COGNITO_CLIENT_ID: "1pscc7mteomtr9o9upfbmc97bk"
+              VUE_APP_COGNITO_CLIENT_ID: props.userPoolClientId,
+              VUE_APP_API_ENDPOINT: props.apiEndpoint,
             },
           }
         }

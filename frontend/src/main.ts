@@ -14,7 +14,7 @@ Amplify.configure({
     API: {
         REST: {
             "ps-api": {
-                endpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
+                endpoint: process.env.VUE_APP_API_ENDPOINT as string,
                 region: process.env.VUE_APP_COGNITO_REGION || "us-east-1",
             },
         },

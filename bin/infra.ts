@@ -25,6 +25,8 @@ const authStage = new PSAuthStage(app, 'PSAuthStage', {
 
 const devStage = new PSAppStage(app, 'DevStage', {
   domain: "Dev",
+  apiEndpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
+  userPoolClientId: "1pscc7mteomtr9o9upfbmc97bk",
   env: defaultEnv,
 })
 
@@ -33,6 +35,8 @@ const devStage = new PSAppStage(app, 'DevStage', {
 // added to delivery.pipeline.addStage(...) yet — that is Phase 6, after the apex cutover.
 const prodStage = new PSAppStage(app, 'ProdStage', {
   domain: "Prod",
+  apiEndpoint: "https://ejocg7sajg.execute-api.us-east-1.amazonaws.com",
+  userPoolClientId: "1nfu38iklkl8m08r6l6jspskr3",
   env: defaultEnv,
 })
 
