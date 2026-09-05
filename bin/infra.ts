@@ -3,7 +3,7 @@ import 'source-map-support/register';
 import { PSPipelineStack } from '../lib/ps-pipeline-stack';
 import { PSAppStage } from '../lib/ps-app-stage';
 import { PSAuthStage } from '../lib/ps-auth-stage';
-import { App } from 'aws-cdk-lib';
+import { App, pipelines } from 'aws-cdk-lib';
 
 const app = new App();
 
@@ -50,4 +50,10 @@ const prodStage = new PSAppStage(app, 'ProdStage', {
 delivery.pipeline.addStage(authStage);
 delivery.pipeline.addStage(devStage);
 
-// delivery.pipeline.addStage(prodStage);
+// Phase 6: Prod is now managed by the pipeline, gated behind a manual approval so a bad push
+// to main can't auto-deploy to the live apex. ProdStage's stacks already exist (deployed
+// locally in Phases 2-5), so the pipeline's first run of this stage is a reconcile after
+// approval, not a fresh create.
+delivery.pipeline.addStage(prodStage, {
+  pre: [new pipelines.ManualApprovalStep('PromoteToProd')],
+});
