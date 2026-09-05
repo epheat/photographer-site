@@ -38,8 +38,14 @@ export class PSBackendStack extends Stack {
 
     // DynamoDB Storage
     // Users, Posts, Albums tables
+    // Phase 2: Prod uses the prefixed names, matching the PITR-restored tables it imports.
+    // Dev stays on the legacy unprefixed names until Phase 4 flips it (renaming Dev's tables
+    // is a CFN replacement, deferred to avoid churning the live site). Phase 4 replaces this
+    // whole conditional with `${props.domain}-PSPosts` / `${props.domain}-PSGameData`.
+    const postsTableName = props.domain === "Prod" ? `${props.domain}-PSPosts` : "PSPosts";
+    const gameDataTableName = props.domain === "Prod" ? `${props.domain}-PSGameData` : "PSGameData";
     const postsTable = new dynamodb.Table(this, 'posts-table', {
-      tableName: "PSPosts",
+      tableName: postsTableName,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'postId', type: dynamodb.AttributeType.STRING },
       pointInTimeRecovery: true,
@@ -55,7 +61,7 @@ export class PSBackendStack extends Stack {
     });
 
     const gameDataTable = new dynamodb.Table(this, 'game-data-table', {
-      tableName: "PSGameData",
+      tableName: gameDataTableName,
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: 'entityId', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'resourceId', type: dynamodb.AttributeType.STRING },
@@ -130,7 +136,7 @@ export class PSBackendStack extends Stack {
     // Staging-cleanup Phase 1 step 4: import the shared pool id from PSAuthStack's export
     // instead of the literal. Resolves to the same physical pool (us-east-1_TLQmyLdLo), so
     // it's a clean update, and it makes DevStage symmetric with how ProdStage imports it.
-    const auth = new PSAuth(this, 'ps-auth', { userPoolId: Fn.importValue('userPoolId') });
+    const auth = new PSAuth(this, 'ps-auth', { userPoolId: Fn.importValue('userPoolId'), stage: props.domain });
 
     // Lambda functions
     const getPostsLambda = new nodejs.NodejsFunction(this, 'get-posts-func', {
