@@ -19,6 +19,7 @@ import {
 } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
+import { API_ZONE_NAME } from "./config";
 import { PSAuth } from "./constructs/ps-auth";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 
@@ -33,7 +34,7 @@ export class PSBackendStack extends Stack {
     // Website hosted at evanheaton.com
     const apiHostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'hostedZone', {
       hostedZoneId: 'Z00027603FLKG9A9ZISEJ',
-      zoneName: 'api.evanheaton.com',
+      zoneName: API_ZONE_NAME,
     });
 
     // DynamoDB Storage

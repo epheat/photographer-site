@@ -12,7 +12,7 @@ import {
   StackProps
 } from "aws-cdk-lib";
 import * as path from "path";
-import { exec } from "child_process";
+import { execSync } from "child_process";
 import * as fs from "fs-extra";
 import { Construct } from "constructs";
 
@@ -102,8 +102,14 @@ export class PSWebsiteStack extends Stack {
             local: {
               tryBundle(outputDir: string) {
                 try {
-                  exec('npm --version'); // check if npm is installed for local build.
-                  exec([
+                  execSync('npm --version'); // check if npm is installed for local build.
+                  // Wipe dist first: vue-cli-service emits content-hashed filenames, so a stale
+                  // bundle from a previous (e.g. other-stage) build would otherwise linger and,
+                  // combined with the copy below, ship the wrong per-stage VUE_APP_API_ENDPOINT.
+                  fs.removeSync(path.join(frontendEntry, 'dist'));
+                  // execSync (not exec): the build MUST finish before we copy dist. The old async
+                  // exec returned immediately and copied a stale dist, shipping the wrong endpoint.
+                  execSync([
                     'npm i',
                     'npm run build'
                   ].join('&&'), {
@@ -113,7 +119,8 @@ export class PSWebsiteStack extends Stack {
                       VUE_APP_COGNITO_CLIENT_ID: props.userPoolClientId,
                       VUE_APP_API_ENDPOINT: props.apiEndpoint,
                     },
-                    cwd: frontendEntry
+                    cwd: frontendEntry,
+                    stdio: 'inherit',
                   });
                   // copy bundle to the CDK output dir
                   fs.copySync(path.join(frontendEntry, 'dist'), outputDir);

@@ -2,18 +2,18 @@ import { Stage, StageProps } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { PSBackendStack } from './ps-backend-stack';
 import { PSWebsiteStack } from './ps-website-stack';
+import { apiEndpointForStage } from './config';
 
 export interface PSAppStageProps extends StageProps {
   domain: String,
-  // Concrete per-stage values baked into the frontend build (see PSWebsiteStackProps).
-  apiEndpoint: string,
+  // Concrete per-stage value baked into the frontend build (see PSWebsiteStackProps). The API
+  // endpoint isn't here: it's derived from `domain` (see apiEndpointForStage).
   userPoolClientId: string,
   websiteDomain?: string,
   websiteDomainAliases?: string[],
 }
 const defaultProps: PSAppStageProps = {
   domain: "Dev",
-  apiEndpoint: "https://ez567m8fv2.execute-api.us-east-1.amazonaws.com",
   userPoolClientId: "1pscc7mteomtr9o9upfbmc97bk",
 }
 
@@ -25,7 +25,7 @@ export class PSAppStage extends Stage {
     });
     const websiteStack = new PSWebsiteStack(this, 'ps-website', {
       domain: props.domain,
-      apiEndpoint: props.apiEndpoint,
+      apiEndpoint: apiEndpointForStage(props.domain as string),
       userPoolClientId: props.userPoolClientId,
       websiteDomain: props.websiteDomain,
       websiteDomainAliases: props.websiteDomainAliases,
