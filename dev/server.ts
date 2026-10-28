@@ -6,12 +6,11 @@
 // JWT-claims object in place of the API Gateway Cognito authorizer, calls the handler, and
 // writes its { statusCode, headers, body } result back to the response.
 //
-//   npm run dev:api        # starts on http://localhost:3000
+//   npm run dev:api        # starts on http://localhost:3000, reloads on save
 //
-// `dev:api` bundles this file with esbuild before running it. That's only needed because
-// @middy/core (which the handlers import) ships as ESM-only, while the repo root is
-// CommonJS for the CDK app — bundling inlines middy so there's no runtime require() of it.
-// Re-run `npm run dev:api` to pick up changes (no watcher, to keep the setup small).
+// Run with Bun (`bun --watch`), which executes the TypeScript directly, hot-reloads on
+// change, and transparently handles the ESM-only @middy/core that the handlers import
+// (plain node/ts-node can't require() it, since the repo root is CommonJS for the CDK app).
 //
 // It talks to the real Dev-stage DynamoDB/S3, so you need AWS credentials in your
 // environment (the same ones `cdk deploy` uses). The Dev tables are disposable by design.
