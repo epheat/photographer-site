@@ -1,4 +1,0 @@
-{
-  "comment": "Marks dev/ as ESM so tsx runs the local dev server (which imports the ESM-only @middy/core) as a module. Scoped to this folder; the CDK app at the repo root stays CommonJS.",
-  "type": "module"
-}

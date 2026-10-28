@@ -1,9 +1,9 @@
 // Default environment for the local dev API server (see dev/server.ts).
 //
 // Imported FIRST, before any lambda handler module, because the handlers read these
-// process.env values at module load time to construct their DynamoDB/S3 clients. ESM
-// evaluates imported modules in source order, so keeping this as server.ts's first
-// import guarantees the defaults are set before the handlers are evaluated.
+// process.env values at module load time to construct their DynamoDB/S3 clients. Module
+// imports are evaluated in source order, so keeping this as server.ts's first import
+// guarantees the defaults are set before the handlers are evaluated.
 //
 // Defaults point at the disposable Dev stage resources. Override any of them by
 // exporting the variable before `npm run dev:api` (e.g. to run against DynamoDB Local).
