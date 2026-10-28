@@ -9,15 +9,18 @@
     "watch": "tsc -w",
     "test": "jest",
     "cdk": "cdk",
+    "dev:api": "node dev/run.mjs",
     "clean": "tsc --build --clean && rm -r cdk.out"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",
     "@types/fs-extra": "^11.0.4",
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.13",
     "@types/node": "^22.5.5",
     "@types/uuid": "^10.0.0",
     "esbuild": "^0.23.1",
+    "express": "^4.21.2",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
