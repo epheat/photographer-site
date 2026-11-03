@@ -50,13 +50,13 @@ _(Can start the PITR restores below in parallel — they don't touch the live po
 - [x] Route53 apex `ARecord` flipped to Prod's distribution — done via CDK (Dev deploy removed it, Prod deploy created it), no manual edit
 - [x] `www.evanheaton.com` — it never resolved before; now a real Route53 alias A-record → Prod (improvement, not just a repoint)
 - [x] Cutover done back-to-back locally; DNS via Route53 alias so propagation was fast
-- [x] `evanheaton.com` confirmed serving from Prod (HTTP 200, Prod bundle) — interactive login check still to do
+- [x] `evanheaton.com` confirmed serving from Prod (HTTP 200, Prod bundle) — interactive login confirmed working
 
 ## Phase 6 — hand Prod to the pipeline (pipeline structure change)
 
-- [ ] `delivery.pipeline.addStage(prodStage, { pre: [...] })` added, with manual approval gate wired in
-- [ ] First pipeline-driven deploy to `ProdStage` confirmed working end-to-end
-- [ ] (Independent, whenever) Decided whether Dev deploys from a non-`main` branch
+- [x] `delivery.pipeline.addStage(prodStage, { pre: [...] })` added, with manual approval gate wired in
+- [x] First pipeline-driven deploy to `ProdStage` confirmed working end-to-end
+- [x] (Independent, whenever) Decided whether Dev deploys from a non-`main` branch — Dev deploys from `main`
 
 ## Phase 7 — cleanup
 
