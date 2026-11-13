@@ -2,44 +2,42 @@
   "name": "photographer",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "serve": "vue-cli-service serve --mode development",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint",
-    "clean": "tsc --build --clean"
+    "serve": "vite",
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.ts --fix"
   },
   "dependencies": {
     "aws-amplify": "^6.20.0",
     "axios": "^1.7.7",
     "c3": "^0.7.20",
-    "core-js": "^3.38.1",
     "marked": "^14.1.2",
     "phaser": "^3.85.1",
     "short-uuid": "^5.2.0",
     "vue": "^3.5.5",
-    "vue-class-component": "^8.0.0-0",
     "vue-router": "^4.4.5",
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.5.0",
     "@typescript-eslint/parser": "^8.5.0",
-    "@vue/cli-plugin-babel": "^5.0.8",
-    "@vue/cli-plugin-eslint": "^5.0.8",
-    "@vue/cli-plugin-typescript": "^5.0.8",
-    "@vue/cli-service": "^5.0.8",
+    "@vitejs/plugin-vue": "^5.1.4",
     "@vue/eslint-config-typescript": "^13.0.0",
-    "babel-eslint": "^10.1.0",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.28.0",
     "sass": "^1.78.0",
-    "sass-loader": "^16.0.1",
-    "typescript": "~5.6.2"
+    "typescript": "~5.6.2",
+    "vite": "^5.4.8",
+    "vue-tsc": "^2.1.6"
   },
   "eslintConfig": {
     "root": true,
     "env": {
-      "node": true
+      "node": true,
+      "browser": true
     },
     "extends": [
       "plugin:vue/vue3-essential",

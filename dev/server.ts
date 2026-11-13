@@ -13,7 +13,7 @@
 // (plain node/ts-node can't require() it, since the repo root is CommonJS for the CDK app).
 //
 // It talks to the real Dev-stage DynamoDB/S3, so you need AWS credentials in your
-// environment (the same ones `cdk deploy` uses). The Dev tables are disposable by design.
+// environment (the same ones `cdk deploy` uses).
 //
 // Auth: if the request carries `Authorization: Bearer <jwt>`, the token's claims are
 // decoded (NOT verified — this is local only) and used, so a logged-in frontend user's
