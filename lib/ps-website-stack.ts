@@ -103,7 +103,7 @@ export class PSWebsiteStack extends Stack {
               tryBundle(outputDir: string) {
                 try {
                   execSync('npm --version'); // check if npm is installed for local build.
-                  // Wipe dist first: vue-cli-service emits content-hashed filenames, so a stale
+                  // Wipe dist first: Vite emits content-hashed filenames, so a stale
                   // bundle from a previous (e.g. other-stage) build would otherwise linger and,
                   // combined with the copy below, ship the wrong per-stage VUE_APP_API_ENDPOINT.
                   fs.removeSync(path.join(frontendEntry, 'dist'));
