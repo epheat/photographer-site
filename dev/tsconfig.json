@@ -1,0 +1,19 @@
+{
+  // The root tsconfig.json excludes `dev` (it's run by Bun via `npm run dev:api`, not
+  // compiled by the CDK `tsc` build), which left these files matched to no tsconfig, so
+  // IDEs type-checked them against bare defaults and showed spurious errors. This config
+  // is editor-only (noEmit) and uses ESM resolution so the ESM-only @middy imports the
+  // lambda handlers pull in resolve the same way Bun loads them.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": []
+}

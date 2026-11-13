@@ -23,7 +23,6 @@
 import "./env"; // must come first — see dev/env.ts
 
 import express, { Request, Response } from "express";
-import type { Handler } from "aws-lambda";
 
 // Handlers. images/mukhunt both export `getUploadUrl`, so alias on import.
 import { getAll, get as getPost, put as putPost, edit as editPost } from "../lib/lambda/posts";
@@ -111,8 +110,10 @@ function makeContext() {
   } as any;
 }
 
-// Wrap a lambda handler as an Express handler.
-function lambda(handler: Handler) {
+// Wrap a lambda handler as an Express handler. The param is loosely typed because the
+// handlers are @middy-wrapped: their context type is `Context & { metrics }`, which is
+// not assignable to aws-lambda's bare `Handler`. makeContext() supplies a stub context.
+function lambda(handler: (event: any, context: any, callback: any) => any) {
   return async (req: Request, res: Response) => {
     try {
       const result: any = await handler(toEvent(req), makeContext(), () => {});
@@ -137,7 +138,10 @@ app.use((req, res, next) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Amz-Date,X-Api-Key");
-  if (req.method === "OPTIONS") return res.sendStatus(204);
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
   next();
 });
 app.use(express.json({ limit: "10mb" }));
